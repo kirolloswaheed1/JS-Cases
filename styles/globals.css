@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* JS Cases brand theme tokens */
+:root {
+  --font-sans: 'Poppins', system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-display: 'Poppins', system-ui, sans-serif;
+
+  --color-background: #CCC0B4;
+  --color-text: #000000;
+  --color-primary: #690001;
+  --color-primary-label: #FFFFFF;
+  --color-outline: #690001;
+  --color-shadow: #690001;
+}
+
+html,
+body {
+  background: var(--color-background);
+  color: var(--color-text);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Konva container fixes */
+.konvajs-content {
+  margin: 0 auto;
+}
+
+/* Custom scrollbar styled to brand */
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: rgba(105, 0, 1, 0.25);
+  border-radius: 3px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* Loading shimmer */
+@keyframes shimmer {
+  0% { background-position: -400px 0; }
+  100% { background-position: 400px 0; }
+}
+.shimmer {
+  background: linear-gradient(90deg, #E5DDD2 0%, #D4C9BB 50%, #E5DDD2 100%);
+  background-size: 800px 100%;
+  animation: shimmer 1.4s infinite linear;
+}
+
+/* Subtle floating label for the camera area */
+@keyframes float-y {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-2px); }
+}
+.float-soft {
+  animation: float-y 3s ease-in-out infinite;
+}
+
+/* Sticker hover wiggle */
+@keyframes wiggle {
+  0%, 100% { transform: rotate(0); }
+  25% { transform: rotate(-4deg); }
+  75% { transform: rotate(4deg); }
+}
+.hover-wiggle:hover {
+  animation: wiggle 0.4s ease-in-out;
+}
+
+/* Hide horizontal scrollbar but keep scrollable */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+/* Brand button helpers */
+.btn-primary {
+  background: var(--color-primary);
+  color: var(--color-primary-label);
+}
+.btn-primary:hover {
+  background: #520001;
+}
+.btn-outline {
+  background: transparent;
+  color: var(--color-primary);
+  border: 1.5px solid var(--color-outline);
+}
+.btn-outline:hover {
+  background: var(--color-primary);
+  color: var(--color-primary-label);
+}
