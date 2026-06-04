@@ -6,32 +6,61 @@ interface Props {
   onAddImage: (src: string, naturalWidth: number, naturalHeight: number) => void;
 }
 
+// Security: strict allowlist. SVG is intentionally excluded — SVGs can carry
+// scripts and are an XSS vector if rendered inline. Only raster photo formats.
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
+const MAX_BYTES = 8 * 1024 * 1024; // 8 MB
+// Guard against decompression-bomb / memory crashes from absurd dimensions.
+const MAX_DIMENSION = 8000; // px on the longest side
+const LOW_RES_WARN = 800; // warn (don't block) below this on the longest side
+
 export default function ImageTools({ onAddImage }: Props) {
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
 
   async function handleFile(file: File) {
-    if (!file.type.startsWith('image/')) {
-      alert('Please upload an image file.');
+    setError(null);
+    setNotice(null);
+
+    if (!ALLOWED_TYPES.includes(file.type)) {
+      setError('Please upload a JPG, PNG, or WEBP image under 8MB.');
       return;
     }
-    if (file.size > 15 * 1024 * 1024) {
-      alert('Image is too large. Please choose a file under 15 MB.');
+    if (file.size > MAX_BYTES) {
+      setError('Please upload a JPG, PNG, or WEBP image under 8MB.');
       return;
     }
+
     setLoading(true);
     try {
       const dataUrl = await readAsDataUrl(file);
       const { width, height } = await getImageDimensions(dataUrl);
+
+      const longest = Math.max(width, height);
+      if (longest > MAX_DIMENSION) {
+        setError(
+          `That image is very large (${width}×${height}px). Please use one no larger than ${MAX_DIMENSION}px on its longest side.`
+        );
+        return;
+      }
+      if (longest < LOW_RES_WARN) {
+        // Warn but still allow — don't crash or block the customer.
+        setNotice('Heads up: this image is low-resolution and may look blurry when printed.');
+      }
+
       onAddImage(dataUrl, width, height);
+    } catch {
+      setError('We couldn\u2019t read that image. Please try a different file.');
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <div className="bg-white border border-brand-stroke rounded-card p-4 shadow-card">
+    <div className="bg-brand-paper border border-brand-stroke rounded-card p-4 shadow-card">
       <h3 className="font-bold text-sm mb-3">Upload an image</h3>
       <div
         onDragOver={(e) => {
@@ -56,26 +85,26 @@ export default function ImageTools({ onAddImage }: Props) {
           <p className="text-sm text-brand-muted">Processing…</p>
         ) : (
           <>
-            <div className="mx-auto w-10 h-10 rounded-pill bg-brand-primary-soft flex items-center justify-center mb-2">
+            <div className="mx-auto w-12 h-12 rounded-pill bg-brand-primary-soft flex items-center justify-center mb-2">
               <svg
-                width="20"
-                height="20"
+                width="22"
+                height="22"
                 viewBox="0 0 24 24"
                 fill="none"
-                stroke="#FF4D8D"
+                stroke="#690001"
                 strokeWidth="2"
               >
                 <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
               </svg>
             </div>
-            <p className="text-sm font-medium">Tap to upload</p>
-            <p className="text-xs text-brand-muted mt-1">PNG, JPG up to 15 MB</p>
+            <p className="text-sm font-semibold">Tap to upload</p>
+            <p className="text-xs text-brand-muted mt-1">JPG, PNG, or WEBP up to 8MB</p>
           </>
         )}
         <input
           ref={inputRef}
           type="file"
-          accept="image/*"
+          accept="image/jpeg,image/png,image/webp"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -84,6 +113,18 @@ export default function ImageTools({ onAddImage }: Props) {
           }}
         />
       </div>
+
+      {error && (
+        <p className="text-xs text-brand-primary font-semibold mt-3 bg-brand-primary-soft rounded-lg px-3 py-2">
+          {error}
+        </p>
+      )}
+      {notice && (
+        <p className="text-xs text-amber-700 mt-3 bg-amber-50 rounded-lg px-3 py-2">
+          {notice}
+        </p>
+      )}
+
       <p className="text-xs text-brand-muted mt-3">
         Tip: use the highest-quality photo you have. Low-res images can look blurry
         when printed.

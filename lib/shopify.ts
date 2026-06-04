@@ -13,15 +13,17 @@
  * The shop's primary domain (jscases.co) is used so checkout stays branded.
  */
 
-export interface CartLineProperties {
-  'Customized Case': 'Yes';
-  'Phone Model': string;
-  'Case Color': string;
-  'Design ID': string;
-  'Preview URL': string;
-  'Print File URL': string;
-  'Editable Design JSON': string;
-}
+/**
+ * Shopify line item properties.
+ *
+ * `Customized Case`, `Phone Model`, `Case Type`, `Design ID`, `Preview URL`,
+ * `Print File URL`, and `Editable Design JSON` are always present.
+ * `Case Color` is included only for solid cases.
+ * `Custom Phone Model` is included only when the customer chose "Other".
+ *
+ * Defined as a record so callers can omit conditional keys without TS friction.
+ */
+export type CartLineProperties = Record<string, string>;
 
 export interface BuildCartUrlInput {
   shopDomain: string;       // e.g. 'jscases.co'

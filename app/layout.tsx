@@ -2,9 +2,19 @@ import type { Metadata } from 'next';
 import '../styles/globals.css';
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_SITE_URL || 'https://designer.jscases.co'
+  ),
   title: 'JS Cases — Create Your Own Case',
   description:
     'Design your own phone case. Upload your photos, add text, play with colors, and build a case that feels completely yours.',
+  openGraph: {
+    title: 'JS Cases — Create Your Own Case',
+    description:
+      'Unique cases, built for you. Upload photos, add text and stickers, and design a case that feels completely yours.',
+    images: ['/js-cases-logo.png'],
+    type: 'website',
+  },
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

@@ -36,28 +36,43 @@ export type TextObject = DesignObjectBase & {
   fontStyle: 'normal' | 'bold' | 'italic' | 'bold italic';
   letterSpacing: number;
   width: number;     // text box width
+  /**
+   * Text layout mode:
+   *   - 'horizontal': single-line, normal flow (default).
+   *   - 'multiline':  honors line breaks the user typed (`\n`).
+   *   - 'stacked':    one character per line, so "HELLO" reads vertically.
+   * Original `text` is always preserved as the user typed it; the renderer
+   * derives the displayed string from this layout flag at draw time.
+   */
+  textLayout: 'horizontal' | 'multiline' | 'stacked';
+  lineHeight: number; // multiplier, e.g. 1.0, 1.2, 1.5
 };
 
 /**
- * Sticker = an inline SVG asset from `lib/assets-library.ts`.
- * We store the assetId + category so the design JSON is portable, and the
- * fill color so it can be re-tinted without re-loading the catalog.
+ * Sticker = a PNG image asset from `lib/assets-library.ts`.
+ * We persist the assetId + category so the design JSON stays portable across
+ * catalog edits, and a snapshot of the `src` so old designs still render if
+ * an asset is later removed from the catalog.
  */
 export type StickerObject = DesignObjectBase & {
   type: 'sticker';
   assetId: string;
   categoryId: string;
+  src: string;
   width: number;
   height: number;
-  fill: string;
 };
 
 export type DesignObject = ImageObject | TextObject | StickerObject;
 
 export interface DesignState {
   modelId: string;
-  caseColor: string;       // hex
+  /** 'solid' = use caseColor, 'transparent' = clear / no fill. */
+  caseType: 'solid' | 'transparent';
+  caseColor: string;       // hex (ignored when caseType === 'transparent')
   backgroundColor: string; // hex, transparent allowed via 'transparent'
   objects: DesignObject[];
   selectedId: string | null;
+  /** Custom phone model name when modelId === 'other'. */
+  customPhoneModel?: string;
 }

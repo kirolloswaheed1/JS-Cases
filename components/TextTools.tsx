@@ -47,13 +47,57 @@ export default function TextTools({ onAddText, selected, onUpdate }: Props) {
             <label className="block text-xs font-medium text-brand-muted mb-1">
               Text
             </label>
-            <input
-              type="text"
-              value={selected.text}
-              onChange={(e) => onUpdate({ text: e.target.value })}
-              dir="auto"
-              className="w-full border border-brand-stroke rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-primary"
-            />
+            {selected.textLayout === 'multiline' ? (
+              <textarea
+                value={selected.text}
+                onChange={(e) => onUpdate({ text: e.target.value })}
+                dir="auto"
+                rows={3}
+                className="w-full border border-brand-stroke rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-primary resize-y"
+              />
+            ) : (
+              <input
+                type="text"
+                value={selected.text}
+                onChange={(e) => onUpdate({ text: e.target.value })}
+                dir="auto"
+                className="w-full border border-brand-stroke rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-brand-primary"
+              />
+            )}
+          </div>
+
+          {/* Text layout — horizontal / multiline / stacked */}
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">
+              Layout
+            </label>
+            <div className="grid grid-cols-3 gap-1">
+              {(
+                [
+                  { id: 'horizontal', label: 'Horizontal', preview: 'Ab' },
+                  { id: 'multiline', label: 'Multi-line', preview: '¶' },
+                  { id: 'stacked',  label: 'Stacked',    preview: 'A\nB' },
+                ] as const
+              ).map((opt) => (
+                <button
+                  key={opt.id}
+                  onClick={() => onUpdate({ textLayout: opt.id })}
+                  className={`py-1.5 text-xs rounded-lg border font-semibold ${
+                    (selected.textLayout ?? 'horizontal') === opt.id
+                      ? 'border-brand-primary bg-brand-primary-soft text-brand-primary-hover'
+                      : 'border-brand-stroke text-brand-muted hover:border-brand-primary/40'
+                  }`}
+                  title={opt.label}
+                >
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+            {selected.textLayout === 'stacked' && (
+              <p className="text-[11px] text-brand-muted mt-1">
+                Each character is shown on its own line.
+              </p>
+            )}
           </div>
 
           <div>
@@ -100,6 +144,21 @@ export default function TextTools({ onAddText, selected, onUpdate }: Props) {
                 className="w-full border border-brand-stroke rounded-lg px-3 py-2 text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="block text-xs font-medium text-brand-muted mb-1">
+              Line height {(selected.lineHeight ?? 1.2).toFixed(2)}×
+            </label>
+            <input
+              type="range"
+              min={0.8}
+              max={3}
+              step={0.05}
+              value={selected.lineHeight ?? 1.2}
+              onChange={(e) => onUpdate({ lineHeight: Number(e.target.value) })}
+              className="w-full accent-brand-primary"
+            />
           </div>
 
           <div>

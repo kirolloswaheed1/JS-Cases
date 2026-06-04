@@ -22,6 +22,8 @@ type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors';
 
 export default function CustomizerApp() {
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID);
+  const [customPhoneModel, setCustomPhoneModel] = useState<string>('');
+  const [caseType, setCaseType] = useState<'solid' | 'transparent'>('solid');
   const [caseColor, setCaseColor] = useState<string>(
     CASE_COLORS.find((c) => c.id === DEFAULT_CASE_COLOR)?.hex ?? '#FFFFFF'
   );
@@ -29,6 +31,10 @@ export default function CustomizerApp() {
   const [objects, setObjects] = useState<DesignObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('product');
+  // Mobile tools drawer — collapsed by default so the phone preview is the focus.
+  const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+  // Preview mode — hides all editor chrome for a clean look before checkout.
+  const [previewMode, setPreviewMode] = useState<boolean>(false);
   const [status, setStatus] = useState<{
     state: 'idle' | 'exporting' | 'uploading' | 'redirecting' | 'success' | 'error';
     message?: string;
@@ -41,6 +47,12 @@ export default function CustomizerApp() {
   );
   const blocking = hasBlockingErrors(issues);
   const selected = objects.find((o) => o.id === selectedId) ?? null;
+
+  // On mobile, tapping a tool tab should also open the drawer so the controls show.
+  const handleMobileTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    setDrawerOpen(true);
+  }, []);
 
   /* ---------------- Object operations ---------------- */
 
@@ -99,6 +111,8 @@ export default function CustomizerApp() {
         fontStyle: 'bold',
         letterSpacing: 0,
         width: model.safeArea.width - 40,
+        textLayout: 'horizontal',
+        lineHeight: 1.2,
       };
       setObjects((prev) => [...prev, newObj]);
       setSelectedId(newObj.id);
@@ -116,11 +130,11 @@ export default function CustomizerApp() {
         name: asset.name,
         assetId: asset.id,
         categoryId,
+        src: asset.src,
         x: model.safeArea.x + (model.safeArea.width - size) / 2,
         y: model.safeArea.y + (model.safeArea.height - size) / 2,
         width: size,
         height: size,
-        fill: asset.defaultColor || '#0A0A0A',
         rotation: 0,
         scaleX: 1,
         scaleY: 1,
@@ -176,6 +190,10 @@ export default function CustomizerApp() {
       alert('Please resolve the errors before adding to cart.');
       return;
     }
+    if (model.isOther && customPhoneModel.trim().length === 0) {
+      alert('Please type your phone model before adding to cart.');
+      return;
+    }
     if (model.shopifyVariantId.startsWith('REPLACE_')) {
       alert(
         'This phone model does not yet have a Shopify variant ID configured. The store owner needs to update lib/phone-models.ts.'
@@ -184,6 +202,7 @@ export default function CustomizerApp() {
     }
 
     const designId = generateDesignId();
+    const trimmedCustomModel = customPhoneModel.trim().slice(0, 80);
 
     try {
       setStatus({ state: 'exporting', message: 'Preparing print file…' });
@@ -194,10 +213,12 @@ export default function CustomizerApp() {
 
       const { previewDataUrl, printDataUrl, designJson } = await exportDesign(
         objects,
+        caseType,
         caseColor,
         backgroundColor,
         model,
-        designId
+        designId,
+        model.isOther ? trimmedCustomModel : undefined
       );
 
       setStatus({ state: 'uploading', message: 'Uploading design…' });
@@ -226,19 +247,30 @@ export default function CustomizerApp() {
       const caseColorName =
         CASE_COLORS.find((c) => c.hex === caseColor)?.name ?? caseColor;
 
+      // Build Shopify line item properties. Conditional fields are only
+      // included when relevant (e.g. Case Color is omitted for transparent
+      // cases; Custom Phone Model is only present for the "Other" option).
+      const properties: Record<string, string> = {
+        'Customized Case': 'Yes',
+        'Phone Model': model.isOther ? 'Other' : model.name,
+        'Case Type': caseType === 'transparent' ? 'Transparent' : 'Solid Color',
+        'Design ID': designId,
+        'Preview URL': previewUrl,
+        'Print File URL': printFileUrl,
+        'Editable Design JSON': designJsonUrl,
+      };
+      if (model.isOther && trimmedCustomModel) {
+        properties['Custom Phone Model'] = trimmedCustomModel;
+      }
+      if (caseType === 'solid') {
+        properties['Case Color'] = caseColorName;
+      }
+
       const cartUrl = buildShopifyCartUrl({
         shopDomain,
         variantId: model.shopifyVariantId,
         quantity: 1,
-        properties: {
-          'Customized Case': 'Yes',
-          'Phone Model': model.name,
-          'Case Color': caseColorName,
-          'Design ID': designId,
-          'Preview URL': previewUrl,
-          'Print File URL': printFileUrl,
-          'Editable Design JSON': designJsonUrl,
-        },
+        properties,
       });
 
       // Brief moment to let the user read the success message
@@ -252,27 +284,76 @@ export default function CustomizerApp() {
         message: "We couldn't prepare your design. Please try again.",
       });
     }
-  }, [objects, blocking, model, caseColor, backgroundColor]);
+  }, [objects, blocking, model, caseType, caseColor, backgroundColor, customPhoneModel]);
 
   /* ---------------- Render ---------------- */
 
   return (
     <div className="min-h-screen bg-brand-bg text-brand-ink">
+      {/* Preview mode — full-screen, chrome-free, branded */}
+      {previewMode && (
+        <div className="fixed inset-0 z-50 bg-brand-bg flex flex-col">
+          <div className="h-1.5 w-full bg-brand-primary" />
+          <div className="flex items-center justify-between px-4 py-3 border-b border-brand-stroke">
+            <img src="/js-cases-logo-transparent.png" alt="JS Cases" className="h-10 w-auto" />
+            <span className="text-xs font-bold text-brand-primary uppercase tracking-wide">
+              Preview
+            </span>
+          </div>
+          <div className="flex-1 flex flex-col items-center justify-center px-4 overflow-auto">
+            <p className="text-sm text-brand-ink/70 mb-4 text-center max-w-sm">
+              This is how your case will look. The camera area stays open and won't be printed.
+            </p>
+            <PhoneCanvas
+              model={model}
+              caseType={caseType}
+              caseColor={caseColor}
+              backgroundColor={backgroundColor}
+              objects={objects}
+              selectedId={null}
+              issues={issues}
+              onSelect={() => {}}
+              onUpdate={() => {}}
+              onDelete={() => {}}
+              onDuplicate={() => {}}
+              preview
+            />
+          </div>
+          <div className="p-4 border-t border-brand-stroke bg-brand-paper">
+            <button
+              onClick={() => setPreviewMode(false)}
+              className="w-full max-w-md mx-auto block font-bold py-3.5 rounded-pill bg-brand-primary text-brand-primary-label shadow-pop hover:bg-brand-primary-hover active:scale-[0.98] transition"
+            >
+              ← Back to editing
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Top brand bar */}
       <div className="h-1.5 w-full bg-brand-primary" />
 
       {/* Header */}
       <header className="bg-brand-bg/95 backdrop-blur border-b border-brand-stroke sticky top-1.5 z-20">
         <div className="max-w-7xl mx-auto px-4 py-3 md:py-4 flex items-center justify-between">
-          <a href="https://jscases.co" className="flex items-center" aria-label="JS Cases">
-            {/* Replace /js-cases-logo.svg with your real logo file (PNG or SVG) in /public */}
+          <a href="https://jscases.co" className="flex items-center" aria-label="JS Cases — Unique Cases, Built For You">
             <img
-              src="/js-cases-logo.svg"
+              src="/js-cases-logo-transparent.png"
               alt="JS Cases"
-              className="h-7 md:h-9 w-auto"
+              className="h-10 md:h-12 w-auto"
             />
           </a>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setPreviewMode(true)}
+              className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary hover:bg-brand-primary hover:text-brand-primary-label transition px-3 py-1.5 rounded-pill border border-brand-primary/40"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              Preview
+            </button>
             <button
               onClick={resetDesign}
               className="text-sm font-semibold text-brand-ink/70 hover:text-brand-primary transition px-3 py-1.5 rounded-pill border border-transparent hover:border-brand-primary/30"
@@ -298,7 +379,7 @@ export default function CustomizerApp() {
       </div>
 
       {/* Main grid */}
-      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-32 md:pb-12">
+      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-44 md:pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_320px] gap-4 lg:gap-6">
           {/* Left column — tools (desktop only) */}
           <aside className="hidden lg:block">
@@ -307,9 +388,13 @@ export default function CustomizerApp() {
               {activeTab === 'product' && (
                 <ProductOptions
                   modelId={modelId}
+                  customPhoneModel={customPhoneModel}
+                  caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
+                  onCustomPhoneModelChange={setCustomPhoneModel}
+                  onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
                 />
@@ -334,9 +419,13 @@ export default function CustomizerApp() {
               {activeTab === 'colors' && (
                 <ProductOptions
                   modelId={modelId}
+                  customPhoneModel={customPhoneModel}
+                  caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
+                  onCustomPhoneModelChange={setCustomPhoneModel}
+                  onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
                   showOnlyColors
@@ -349,6 +438,7 @@ export default function CustomizerApp() {
           <main className="flex flex-col items-center">
             <PhoneCanvas
               model={model}
+              caseType={caseType}
               caseColor={caseColor}
               backgroundColor={backgroundColor}
               objects={objects}
@@ -376,61 +466,118 @@ export default function CustomizerApp() {
         </div>
       </div>
 
-      {/* Mobile bottom sheet: tools + add to cart */}
-      <div className="lg:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-brand-stroke shadow-soft z-10">
-        <div className="px-3 pt-2 pb-1">
-          <Toolbar activeTab={activeTab} onChange={setActiveTab} mobile />
-        </div>
-        <div className="px-3 pb-3 max-h-[44vh] overflow-y-auto scrollbar-thin">
-          {activeTab === 'product' && (
-            <ProductOptions
-              modelId={modelId}
-              caseColor={caseColor}
-              backgroundColor={backgroundColor}
-              onModelChange={setModelId}
-              onCaseColorChange={setCaseColor}
-              onBackgroundChange={setBackgroundColor}
-            />
+      {/* Mobile tools drawer — collapsible so the phone preview stays the focus */}
+      <div className="lg:hidden">
+        {/* Dimmer behind the expanded drawer */}
+        {drawerOpen && (
+          <div
+            className="fixed inset-0 bg-black/20 z-20"
+            onClick={() => setDrawerOpen(false)}
+            aria-hidden="true"
+          />
+        )}
+
+        <div
+          className={`fixed bottom-0 left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-soft z-30 rounded-t-card transition-transform duration-300 ease-out ${
+            drawerOpen ? 'translate-y-0' : 'translate-y-0'
+          }`}
+        >
+          {/* Drawer handle / toggle */}
+          <button
+            onClick={() => setDrawerOpen((v) => !v)}
+            className="w-full flex flex-col items-center pt-2 pb-1 active:bg-brand-cream/60 rounded-t-card"
+            aria-expanded={drawerOpen}
+            aria-label={drawerOpen ? 'Hide tools' : 'Show tools'}
+          >
+            <span className="w-10 h-1.5 rounded-pill bg-brand-stroke mb-1" />
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
+              {drawerOpen ? (
+                <>
+                  Hide tools
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </>
+              ) : (
+                <>
+                  Show tools
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+                  </svg>
+                </>
+              )}
+            </span>
+          </button>
+
+          {/* Tabs — always visible */}
+          <div className="px-3 pb-2">
+            <Toolbar activeTab={activeTab} onChange={handleMobileTab} mobile />
+          </div>
+
+          {/* Expandable tool controls — only mounted when open */}
+          {drawerOpen && (
+            <div className="px-3 pb-3 max-h-[50vh] overflow-y-auto scrollbar-thin">
+              {activeTab === 'product' && (
+                <ProductOptions
+                  modelId={modelId}
+                  customPhoneModel={customPhoneModel}
+                  caseType={caseType}
+                  caseColor={caseColor}
+                  backgroundColor={backgroundColor}
+                  onModelChange={setModelId}
+                  onCustomPhoneModelChange={setCustomPhoneModel}
+                  onCaseTypeChange={setCaseType}
+                  onCaseColorChange={setCaseColor}
+                  onBackgroundChange={setBackgroundColor}
+                />
+              )}
+              {activeTab === 'upload' && <ImageTools onAddImage={addImage} />}
+              {activeTab === 'text' && (
+                <TextTools
+                  onAddText={addText}
+                  selected={selected?.type === 'text' ? selected : null}
+                  onUpdate={(patch) => selected && updateObject(selected.id, patch)}
+                />
+              )}
+              {activeTab === 'stickers' && (
+                <AssetsPanel
+                  onAddSticker={addSticker}
+                  selected={selected?.type === 'sticker' ? selected : null}
+                  onUpdate={(patch) => selected && updateObject(selected.id, patch)}
+                />
+              )}
+              {activeTab === 'colors' && (
+                <ProductOptions
+                  modelId={modelId}
+                  customPhoneModel={customPhoneModel}
+                  caseType={caseType}
+                  caseColor={caseColor}
+                  backgroundColor={backgroundColor}
+                  onModelChange={setModelId}
+                  onCustomPhoneModelChange={setCustomPhoneModel}
+                  onCaseTypeChange={setCaseType}
+                  onCaseColorChange={setCaseColor}
+                  onBackgroundChange={setBackgroundColor}
+                  showOnlyColors
+                />
+              )}
+            </div>
           )}
-          {activeTab === 'upload' && <ImageTools onAddImage={addImage} />}
-          {activeTab === 'text' && (
-            <TextTools
-              onAddText={addText}
-              selected={selected?.type === 'text' ? selected : null}
-              onUpdate={(patch) => selected && updateObject(selected.id, patch)}
-            />
-          )}
-          {activeTab === 'stickers' && (
-            <AssetsPanel
-              onAddSticker={addSticker}
-              selected={selected?.type === 'sticker' ? selected : null}
-              onUpdate={(patch) => selected && updateObject(selected.id, patch)}
-            />
-          )}
-          {activeTab === 'colors' && (
-            <ProductOptions
-              modelId={modelId}
-              caseColor={caseColor}
-              backgroundColor={backgroundColor}
-              onModelChange={setModelId}
-              onCaseColorChange={setCaseColor}
-              onBackgroundChange={setBackgroundColor}
-              showOnlyColors
-            />
-          )}
-        </div>
-        <div className="border-t border-brand-stroke px-3 py-3 bg-brand-paper">
-          <ValidationPanel issues={issues} compact />
-          <div className="mt-2">
-            <AddToCartPanel
-              model={model}
-              caseColor={caseColor}
-              objectCount={objects.length}
-              status={status}
-              disabled={blocking}
-              onAdd={handleAddToCart}
-              compact
-            />
+
+          {/* Always-visible bottom bar: validation + add to cart */}
+          <div className="border-t border-brand-stroke px-3 py-3 bg-brand-paper">
+            {drawerOpen && <ValidationPanel issues={issues} compact />}
+            <div className={drawerOpen ? 'mt-2' : ''}>
+              <AddToCartPanel
+                model={model}
+                caseColor={caseColor}
+                objectCount={objects.length}
+                status={status}
+                disabled={blocking}
+                onAdd={handleAddToCart}
+                compact
+              />
+            </div>
           </div>
         </div>
       </div>

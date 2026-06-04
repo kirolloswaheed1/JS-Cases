@@ -335,3 +335,230 @@ npm run build
 ```
 
 A successful build ends with the route table and no red errors.
+
+---
+
+## Mobile layout & Preview mode
+
+The editor is mobile-first. On phones:
+
+- The **phone case preview is always the focus** — it fills the screen above a
+  compact bottom bar.
+- Tools live in a **collapsible bottom drawer**. It's collapsed by default,
+  showing only the tool tabs (Phone / Upload / Text / Stickers / Colors) and the
+  Add to Cart button. Tap **Show tools** (or any tab) to slide it up; it's capped
+  at 50vh with internal scroll, and tapping the dimmed area or **Hide tools**
+  collapses it again so the full design is visible.
+- **Preview** (top-right) opens a clean, chrome-free, branded view of the case
+  with no handles, guides, or panels — just the design and a **Back to editing**
+  button. Good for customer confidence before adding to cart.
+
+Desktop keeps the existing three-column layout (tools / canvas / cart).
+
+## Security
+
+Practical hardening appropriate for a public, no-auth customizer:
+
+- **Image uploads** (`components/ImageTools.tsx`): allowlist of `image/jpeg`,
+  `image/png`, `image/webp` only — **SVG is rejected** (script/XSS vector). Max
+  **8MB**, max 8000px on the longest side (prevents memory crashes), low-res
+  images warn instead of blocking. Friendly inline errors, no `alert()`.
+- **Safe IDs** (`lib/design-id.ts`): every design gets a generated
+  `JS-CASE-…` ID. Original uploaded filenames are never trusted or used as
+  storage keys.
+- **Payload validation** (`lib/design-payload.ts`): the API validates required
+  fields (`designId`, `phoneModel`, `caseColor`, `objects`, `createdAt`),
+  enforces a 25MB cap and a 200-object limit, whitelists colors, strips control
+  characters from text, and only persists a sanitized object.
+- **API route** (`app/api/upload-design/route.ts`): POST-only (others get 405),
+  size-guarded, validates before storing, and returns safe error messages —
+  never internal stack traces (those are logged server-side only).
+- **Security headers** (`next.config.js`): a practical `Content-Security-Policy`
+  (tuned so canvas/image/font loading and PNG export keep working),
+  `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`,
+  `X-Frame-Options`, and `frame-ancestors` that allow embedding only on
+  `jscases.co` / Shopify. **Adjust `img-src` / `connect-src` when you add a
+  storage provider** — comments in the file mark where.
+- **Secrets**: nothing is hardcoded. Shopify domain and storage settings come
+  from environment variables (see `.env.example`).
+
+---
+
+## Sticker library
+
+Stickers are plain PNG files served from `/public/stickers/` and registered in
+`lib/assets-library.ts`. There's no inline SVG and no script injection — every
+sticker is a static image the browser loads like any other `<img>`.
+
+### Folder structure
+
+```
+public/stickers/
+├── _manifest.json        ← original → renamed filename map (for reference)
+├── men/                  ← Men category (43 stickers, men-001.png … men-043.png)
+└── women/                ← Women category (16 stickers, women-001.png … women-016.png)
+```
+
+`_manifest.json` records the original filename for each renamed sticker. If
+you ever need to find one (e.g. "what was `men-017.png` called originally?"),
+it's all there.
+
+### How to remove a specific sticker
+
+1. Open `lib/assets-library.ts`.
+2. Find and delete the matching `{ id: 'men-NNN', ... }` line from the array.
+3. *(Optional)* Delete the matching PNG file from
+   `public/stickers/men/` or `public/stickers/women/`. Leaving it on disk is
+   harmless — it just won't appear in the sticker picker once it's removed
+   from the array.
+
+### How to replace a sticker
+
+1. Drop the new PNG into the right folder, overwriting (or renaming) the file.
+2. If you renamed it, update the `src` path in the matching array entry in
+   `lib/assets-library.ts`.
+
+### How to add a sticker
+
+1. Drop a PNG into `public/stickers/men/` or `public/stickers/women/`.
+2. Add an entry to the matching `assets` array in `lib/assets-library.ts`:
+   ```ts
+   { id: 'men-044', name: 'Men sticker 044', src: '/stickers/men/men-044.png' },
+   ```
+
+### How to add a whole new category
+
+Append a new top-level entry to `ASSET_CATEGORIES` in `lib/assets-library.ts`.
+The `id` should be lowercase and stable (it gets persisted in design JSON);
+`name` is what shows on the chip in the sticker picker.
+
+### A note on the current sticker set
+
+The PNGs included in this build came directly from the client-provided
+`Stickers.zip` for internal preview/testing. Some contain logos, branded
+products, or recognizable photos that may not be safe for public commercial
+sale without licensing. Filter the catalog (`assets-library.ts`) before
+launching to public customers.
+
+## Transparent / Clear Case
+
+`caseType: 'solid' | 'transparent'` is now part of the design state.
+
+- **Solid**: the case is filled with the selected `caseColor`, exactly as before.
+- **Transparent**: the case is shown in the editor with a dashed outline and a
+  light tint so the customer can still see the case shape. The **print PNG has
+  no case fill** — it's a clean alpha PNG of just the artwork, which the printer
+  overlays on a clear case.
+
+Shopify properties include `Case Type: Solid Color | Transparent`. `Case Color`
+is only attached for solid cases.
+
+## Other / Not listed phone model
+
+There's a new `other` phone model with `isOther: true`. When the customer
+picks it from the model dropdown, a text input appears asking them to type
+their phone model. Add to Cart is gated until they fill it in. Shopify
+properties get `Phone Model: Other` plus `Custom Phone Model: <their text>`,
+and the design JSON includes `customPhoneModel`.
+
+The current `other` model uses a generic mockup geometry as a fallback. When
+your real phone-mockup images are wired in (next pass), the Other option will
+keep its generic mockup with the "Our team will confirm availability before
+production." note.
+
+## Text controls
+
+Each text object stores a `textLayout`:
+
+- `horizontal` (default) — single line; existing newlines flatten to spaces.
+- `multiline` — honors line breaks the customer typed (textarea editor).
+- `stacked` — one character per line, so "HELLO" reads top-to-bottom.
+
+The user-typed `text` field is preserved verbatim — toggling the layout is
+non-destructive. `lineHeight` (a multiplier) and `letterSpacing` are independent
+controls. Bold / italic / size / family / alignment / color are all per-object
+on the existing `TextObject` interface.
+
+---
+
+## Phone mockups
+
+The editor draws each iPhone model on top of a real mockup PNG from
+`/public/phone-mockups/`. The mockup is a line-drawing outline with a
+transparent interior, so the case-color fill shows through, the outline
+frames the design, and the camera bump area is visible.
+
+### Where mockups live
+
+```
+public/phone-mockups/
+├── iphone-11.png
+├── iphone-11-pro.png
+├── iphone-11-pro-max.png
+├── iphone-12.png
+├── … (21 files total, iPhone 11 → 17, all variants)
+└── iphone-17-pro-max.png
+```
+
+Each filename is the kebab-case version of the phone model id (the `id` field
+in `lib/phone-models.ts`).
+
+### How to replace a mockup
+
+Drop the new PNG into `public/phone-mockups/` with the same filename. The
+editor picks it up automatically — no code change required as long as the
+filename matches.
+
+### How to tune the design area / camera cutout per model
+
+Every model in `lib/phone-models.ts` has two rectangles you can adjust:
+
+```ts
+{
+  id: 'iphone-15-pro-max',
+  // ...
+  safeArea:     { x: 21, y: 35, width: 378, height: 807, radius: 42 },
+  cameraCutout: { x:  0, y:  0, width: 282, height: 288, radius: 51 },
+}
+```
+
+- `safeArea`: dashed rectangle shown in the editor as "keep important content
+  inside here". Used by the validation system to warn when objects extend
+  outside.
+- `cameraCutout`: the **Not printed** zone. Drawn as a soft dashed outline
+  with the "Not printed" pill label in the editor. The print-ready PNG masks
+  this area out so anything overlapping the camera bump is removed before
+  production.
+
+Both are in canvas pixel coordinates relative to the top-left of the mockup.
+The shipped values are **per-mockup** — for each iPhone mockup I detected
+the case body and camera bump using image analysis, then converted to
+canvas coordinates. They line up closely with the actual camera bump in
+every mockup. A couple of models (iPhone 14 Pro Max in particular) had
+their bump outline merged with the case outline and were filled in by
+hand-tuning against a sibling model.
+
+To refine any model:
+
+1. Open the customizer at the model you want to tune.
+2. Note where the dashed safe area / camera outline lands vs the actual
+   mockup outline.
+3. Edit the matching numbers in `lib/phone-models.ts`.
+4. Dev hot-reload picks the change up immediately.
+
+### Models without a mockup (Samsung, "Other")
+
+The three Samsung models and the "Other / Not listed" placeholder don't have
+mockup files yet. They render with the existing generic rounded-rect case
+fallback — fully functional, just less product-photo-realistic than the
+iPhones. Adding mockups for these is the same flow: drop a PNG with the
+matching slug into `public/phone-mockups/` and set `mockupImage` on the
+model entry in `lib/phone-models.ts`.
+
+### Heads-up on the included mockups
+
+The PNGs shipped in this build came directly from the client-provided
+`Final_mockups.zip`. The iPhone 11 mockup (and faintly some others) shows
+the Apple logo on the case back — Apple's logo is a trademark. Same
+understanding as the stickers: treat as internal-preview placeholders and
+filter or replace before a public commercial launch.

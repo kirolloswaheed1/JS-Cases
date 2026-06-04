@@ -1,7 +1,8 @@
 import Konva from 'konva';
 import type { DesignObject, ImageObject, TextObject, StickerObject } from './design-types';
 import type { PhoneModel } from './phone-models';
-import { findAsset, svgToDataUrl } from './assets-library';
+import { findAsset } from './assets-library';
+import { applyTextLayout } from './text-layout';
 
 /**
  * Exports the design into three artifacts:
@@ -38,6 +39,7 @@ async function renderToStage(
   height: number,
   scale: number,
   objects: DesignObject[],
+  caseType: 'solid' | 'transparent',
   caseColor: string,
   backgroundColor: string,
   model: PhoneModel
@@ -56,19 +58,24 @@ async function renderToStage(
     const layer = new Konva.Layer();
     stage.add(layer);
 
-    // Case base color (rounded rect = phone case silhouette).
-    layer.add(
-      new Konva.Rect({
-        x: 0,
-        y: 0,
-        width,
-        height,
-        cornerRadius: model.safeArea.radius * scale * 1.3, // approximate case corner
-        fill: caseColor,
-      })
-    );
+    // Case base color — ONLY for solid cases. Transparent cases get no fill,
+    // so the print file is a clean alpha PNG with just the artwork on
+    // transparent background (printer overlays it on the clear case).
+    if (caseType === 'solid') {
+      layer.add(
+        new Konva.Rect({
+          x: 0,
+          y: 0,
+          width,
+          height,
+          cornerRadius: model.safeArea.radius * scale * 1.3,
+          fill: caseColor,
+        })
+      );
+    }
 
-    // Optional background fill INSIDE the safe area (so it never bleeds over case edges).
+    // Optional background fill (still allowed on transparent cases — acts as
+    // a "tinted clear" effect if the customer picked one).
     if (backgroundColor && backgroundColor !== 'transparent') {
       layer.add(
         new Konva.Rect({
@@ -102,10 +109,11 @@ async function renderToStage(
         );
       } else if (obj.type === 'sticker') {
         const s = obj as StickerObject;
-        const asset = findAsset(s.assetId);
-        if (!asset) continue;
-        const dataUrl = svgToDataUrl(asset.svg, s.fill);
-        const htmlImg = await loadImage(dataUrl);
+        // Prefer the src snapshot on the object; fall back to the catalog
+        // lookup for legacy designs.
+        const src = s.src || findAsset(s.assetId)?.src;
+        if (!src) continue;
+        const htmlImg = await loadImage(src);
         layer.add(
           new Konva.Image({
             image: htmlImg,
@@ -121,17 +129,20 @@ async function renderToStage(
         );
       } else if (obj.type === 'text') {
         const t = obj as TextObject;
+        // Render the same string the editor displays (after layout transform).
+        const displayText = applyTextLayout(t.text, t.textLayout ?? 'horizontal');
         layer.add(
           new Konva.Text({
             x: t.x * scale,
             y: t.y * scale,
-            text: t.text,
+            text: displayText,
             fontFamily: t.fontFamily,
             fontSize: t.fontSize * scale,
             fill: t.fill,
             align: t.align,
             fontStyle: t.fontStyle,
             letterSpacing: t.letterSpacing * scale,
+            lineHeight: t.lineHeight ?? 1.2,
             width: t.width * scale,
             scaleX: t.scaleX,
             scaleY: t.scaleY,
@@ -167,10 +178,12 @@ async function renderToStage(
 
 export async function exportDesign(
   objects: DesignObject[],
+  caseType: 'solid' | 'transparent',
   caseColor: string,
   backgroundColor: string,
   model: PhoneModel,
-  designId: string
+  designId: string,
+  customPhoneModel?: string
 ): Promise<ExportResult> {
   const printScale = model.print.width / model.canvas.width;
 
@@ -179,6 +192,7 @@ export async function exportDesign(
     model.canvas.height,
     1,
     objects,
+    caseType,
     caseColor,
     backgroundColor,
     model
@@ -189,15 +203,20 @@ export async function exportDesign(
     model.print.height,
     printScale,
     objects,
+    caseType,
     caseColor,
     backgroundColor,
     model
   );
 
   const designJson = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     designId,
     createdAt: new Date().toISOString(),
+    // Top-level fields the upload validator requires:
+    phoneModel: model.id,
+    modelId: model.id,
+    customPhoneModel: customPhoneModel || undefined,
     model: {
       id: model.id,
       name: model.name,
@@ -205,7 +224,8 @@ export async function exportDesign(
       canvas: model.canvas,
       print: model.print,
     },
-    caseColor,
+    caseType,
+    caseColor: caseType === 'transparent' ? 'transparent' : caseColor,
     backgroundColor,
     objects,
   };
