@@ -17,8 +17,11 @@ import ProductOptions from './ProductOptions';
 import ValidationPanel from './ValidationPanel';
 import AddToCartPanel from './AddToCartPanel';
 import AssetsPanel from './AssetsPanel';
+import LayersPanel from './LayersPanel';
+import StepIndicator, { type Step } from './StepIndicator';
+import CartSummaryModal from './CartSummaryModal';
 
-type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors';
+type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors' | 'layers';
 
 export default function CustomizerApp() {
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID);
@@ -35,6 +38,9 @@ export default function CustomizerApp() {
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
   // Preview mode — hides all editor chrome for a clean look before checkout.
   const [previewMode, setPreviewMode] = useState<boolean>(false);
+  // Cart summary modal — shown before the final Shopify redirect so the
+  // customer can review what's about to be added to their cart.
+  const [summaryOpen, setSummaryOpen] = useState<boolean>(false);
   const [status, setStatus] = useState<{
     state: 'idle' | 'exporting' | 'uploading' | 'redirecting' | 'success' | 'error';
     message?: string;
@@ -45,6 +51,22 @@ export default function CustomizerApp() {
     () => validateDesign(objects, model),
     [objects, model]
   );
+
+  /**
+   * Derived "where the customer is in the flow" — drives the step indicator.
+   *   - cart    : the summary modal is open or the redirect is in motion
+   *   - preview : preview mode is active
+   *   - design  : the customer has placed at least one object
+   *   - phone   : empty canvas — they're still picking a model
+   */
+  const currentStep: Step = useMemo(() => {
+    if (summaryOpen || status.state === 'redirecting' || status.state === 'success') {
+      return 'cart';
+    }
+    if (previewMode) return 'preview';
+    if (objects.length > 0) return 'design';
+    return 'phone';
+  }, [summaryOpen, status.state, previewMode, objects.length]);
   const blocking = hasBlockingErrors(issues);
   const selected = objects.find((o) => o.id === selectedId) ?? null;
 
@@ -173,6 +195,19 @@ export default function CustomizerApp() {
     });
   }, []);
 
+  /** Move a layer up (toward the top / drawn last) or down in the stack. */
+  const reorderObject = useCallback((id: string, direction: 'up' | 'down') => {
+    setObjects((prev) => {
+      const idx = prev.findIndex((o) => o.id === id);
+      if (idx === -1) return prev;
+      const target = direction === 'up' ? idx + 1 : idx - 1;
+      if (target < 0 || target >= prev.length) return prev;
+      const copy = [...prev];
+      [copy[idx], copy[target]] = [copy[target], copy[idx]];
+      return copy;
+    });
+  }, []);
+
   const resetDesign = useCallback(() => {
     if (!confirm('Reset your design? This will remove all objects.')) return;
     setObjects([]);
@@ -180,6 +215,62 @@ export default function CustomizerApp() {
   }, []);
 
   /* ---------------- Add to cart flow ---------------- */
+
+  /**
+   * Validates and opens the summary modal. The actual export + upload +
+   * Shopify redirect runs from `handleAddToCart` once the customer confirms
+   * in the modal.
+   */
+  const openSummary = useCallback(() => {
+    if (objects.length === 0) {
+      alert('Add at least one element to your design first.');
+      return;
+    }
+    if (blocking) {
+      alert('Please resolve the errors before adding to cart.');
+      return;
+    }
+    if (model.isOther && customPhoneModel.trim().length === 0) {
+      alert('Please type your phone model before adding to cart.');
+      return;
+    }
+    if (model.shopifyVariantId.startsWith('REPLACE_')) {
+      alert(
+        'This phone model does not yet have a Shopify variant ID configured. The store owner needs to update lib/phone-models.ts.'
+      );
+      return;
+    }
+    // Reset any stale status, deselect for a clean preview, open modal.
+    setStatus({ state: 'idle' });
+    setSelectedId(null);
+    setSummaryOpen(true);
+  }, [objects.length, blocking, model, customPhoneModel]);
+
+  /**
+   * Rows shown in the cart summary modal. Mirrors the Shopify line item
+   * properties that will actually be sent — Case Color is only shown for
+   * solid cases, Custom Phone Model is only shown for the "Other" option.
+   */
+  const summaryRows = useMemo(() => {
+    const trimmedCustomModel = customPhoneModel.trim().slice(0, 80);
+    const caseColorName =
+      CASE_COLORS.find((c) => c.hex === caseColor)?.name ?? caseColor;
+    const rows: { label: string; value: string }[] = [
+      { label: 'Phone Model', value: model.isOther ? 'Other' : model.name },
+    ];
+    if (model.isOther && trimmedCustomModel) {
+      rows.push({ label: 'Custom Phone Model', value: trimmedCustomModel });
+    }
+    rows.push({
+      label: 'Case Type',
+      value: caseType === 'transparent' ? 'Transparent' : 'Solid Color',
+    });
+    if (caseType === 'solid') {
+      rows.push({ label: 'Case Color', value: caseColorName });
+    }
+    rows.push({ label: 'Customized Case', value: 'Yes' });
+    return rows;
+  }, [model, caseType, caseColor, customPhoneModel]);
 
   const handleAddToCart = useCallback(async () => {
     if (objects.length === 0) {
@@ -365,7 +456,7 @@ export default function CustomizerApp() {
       </header>
 
       {/* Hero title */}
-      <div className="max-w-7xl mx-auto px-4 pt-6 pb-3 md:pt-10 md:pb-6 text-center">
+      <div className="max-w-7xl mx-auto px-4 pt-6 pb-3 md:pt-10 md:pb-4 text-center">
         <div className="inline-flex items-center gap-1.5 bg-brand-primary text-brand-primary-label text-xs font-bold px-3 py-1 rounded-pill mb-3">
           <span>✨</span> Design your own
         </div>
@@ -376,6 +467,28 @@ export default function CustomizerApp() {
           Upload your photos, add text, add stickers, and design a case that feels
           completely yours.
         </p>
+      </div>
+
+      {/* Flow steps */}
+      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-3 md:pb-5">
+        <StepIndicator
+          current={currentStep}
+          onStepClick={(s) => {
+            if (s === 'phone') {
+              setPreviewMode(false);
+              setSummaryOpen(false);
+              setActiveTab('product');
+            } else if (s === 'design') {
+              setPreviewMode(false);
+              setSummaryOpen(false);
+            } else if (s === 'preview') {
+              setSummaryOpen(false);
+              setPreviewMode(true);
+            } else if (s === 'cart') {
+              openSummary();
+            }
+          }}
+        />
       </div>
 
       {/* Main grid */}
@@ -431,6 +544,16 @@ export default function CustomizerApp() {
                   showOnlyColors
                 />
               )}
+              {activeTab === 'layers' && (
+                <LayersPanel
+                  objects={objects}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onUpdate={updateObject}
+                  onDelete={deleteObject}
+                  onReorder={reorderObject}
+                />
+              )}
             </div>
           </aside>
 
@@ -460,7 +583,7 @@ export default function CustomizerApp() {
               objectCount={objects.length}
               status={status}
               disabled={blocking}
-              onAdd={handleAddToCart}
+              onAdd={openSummary}
             />
           </aside>
         </div>
@@ -491,21 +614,11 @@ export default function CustomizerApp() {
           >
             <span className="w-10 h-1.5 rounded-pill bg-brand-stroke mb-1" />
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
-              {drawerOpen ? (
-                <>
-                  Hide tools
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M6 9l6 6 6-6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </>
-              ) : (
-                <>
-                  Show tools
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                    <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round" />
-                  </svg>
-                </>
-              )}
+              Tools
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+                style={{ transform: drawerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}>
+                <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </span>
           </button>
 
@@ -516,7 +629,7 @@ export default function CustomizerApp() {
 
           {/* Expandable tool controls — only mounted when open */}
           {drawerOpen && (
-            <div className="px-3 pb-3 max-h-[50vh] overflow-y-auto scrollbar-thin">
+            <div className="px-3 pb-3 max-h-[45vh] overflow-y-auto scrollbar-thin">
               {activeTab === 'product' && (
                 <ProductOptions
                   modelId={modelId}
@@ -561,6 +674,16 @@ export default function CustomizerApp() {
                   showOnlyColors
                 />
               )}
+              {activeTab === 'layers' && (
+                <LayersPanel
+                  objects={objects}
+                  selectedId={selectedId}
+                  onSelect={setSelectedId}
+                  onUpdate={updateObject}
+                  onDelete={deleteObject}
+                  onReorder={reorderObject}
+                />
+              )}
             </div>
           )}
 
@@ -574,13 +697,27 @@ export default function CustomizerApp() {
                 objectCount={objects.length}
                 status={status}
                 disabled={blocking}
-                onAdd={handleAddToCart}
+                onAdd={openSummary}
                 compact
               />
             </div>
           </div>
         </div>
       </div>
+
+      {/* Final review before redirecting to Shopify checkout */}
+      <CartSummaryModal
+        open={summaryOpen}
+        rows={summaryRows}
+        busy={
+          status.state === 'exporting' ||
+          status.state === 'uploading' ||
+          status.state === 'redirecting'
+        }
+        busyMessage={status.message}
+        onConfirm={handleAddToCart}
+        onCancel={() => setSummaryOpen(false)}
+      />
     </div>
   );
 }

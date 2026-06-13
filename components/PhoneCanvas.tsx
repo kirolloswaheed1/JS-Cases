@@ -511,7 +511,7 @@ export default function PhoneCanvas({
           </label>
           <span className="hidden sm:inline text-brand-stroke">·</span>
           <span className="text-xs text-brand-muted text-center">
-            Camera area — this part will not be printed.
+            Camera area — not printed.
           </span>
         </div>
       )}

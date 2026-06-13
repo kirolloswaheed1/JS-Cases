@@ -562,3 +562,58 @@ The PNGs shipped in this build came directly from the client-provided
 the Apple logo on the case back — Apple's logo is a trademark. Same
 understanding as the stickers: treat as internal-preview placeholders and
 filter or replace before a public commercial launch.
+
+---
+
+## UX polish
+
+This pass added four customer-facing improvements wired into the existing flow:
+
+### 1. Branded loading screen
+`components/CustomizerLoader.tsx` replaces the plain "Loading the customizer…"
+fallback used by the dynamic import in `app/page.tsx`. Beige background (#CCC0B4),
+JS Cases logo centered, brand-maroon spinner, and a **Reload designer** button
+that surfaces after 8 seconds for stalled chunk fetches on flaky networks.
+
+### 2. Step indicator
+`components/StepIndicator.tsx` adds a four-step header row — *Choose Phone →
+Design → Preview → Add to Cart* — below the hero. The current step is derived
+from app state (no new source of truth):
+
+| Step    | Condition                                    |
+|---------|----------------------------------------------|
+| phone   | empty canvas, no objects yet                 |
+| design  | at least one object placed                   |
+| preview | preview mode is open                         |
+| cart    | summary modal is open OR redirect is in motion |
+
+Each step is also clickable up to one step ahead — tapping "Preview" opens
+preview mode, tapping "Add to Cart" opens the summary modal.
+
+### 3. Layers tab
+`components/LayersPanel.tsx` adds a sixth tool tab (Phone, Upload, Text,
+Stickers, Colors, **Layers**) listing every object on the canvas in z-order
+(top of list = drawn last = on top). Each row supports select, reorder
+(up/down), visibility toggle, and delete. Wired to the same
+`updateObject` / `deleteObject` / new `reorderObject` handlers in
+`CustomizerApp.tsx`.
+
+### 4. Pre-cart summary modal
+`components/CartSummaryModal.tsx` is shown the moment a customer clicks
+**Add Custom Case to Cart**. It mirrors the exact Shopify line item properties
+that will be sent — Phone Model, Custom Phone Model (only for "Other"),
+Case Type, Case Color (only for solid), and "Customized Case: Yes" — so the
+customer reviews the order one last time before the cart redirect. The
+"Confirm & checkout" button runs the actual export/upload/redirect; "Back to
+editing" closes the modal without doing anything.
+
+### Minor adjustments
+- Mobile drawer button now reads simply **Tools** (chevron rotates on
+  toggle); max-height tightened from 50vh to 45vh so more of the canvas
+  stays visible while the drawer is open.
+- Camera helper text under the canvas shortened to **"Camera area — not
+  printed."** to match the customer-facing copy in the spec.
+
+All changes are incremental — phone model selector, case colors, image
+upload, text tools, stickers library, Shopify redirect, security headers,
+mockup overlay layer, and camera-mask logic are untouched.

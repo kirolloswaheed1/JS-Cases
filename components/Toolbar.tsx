@@ -1,6 +1,6 @@
 'use client';
 
-type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors';
+type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors' | 'layers';
 
 interface Props {
   activeTab: Tab;
@@ -57,6 +57,16 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
         <circle cx="15" cy="8" r="1.5" />
         <circle cx="17" cy="14" r="1.5" />
         <circle cx="10" cy="16" r="1.5" />
+      </svg>
+    ),
+  },
+  {
+    id: 'layers',
+    label: 'Layers',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinejoin="round">
+        <path d="M12 3 2 9l10 6 10-6-10-6Z" />
+        <path d="m2 15 10 6 10-6" />
       </svg>
     ),
   },
