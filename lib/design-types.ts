@@ -75,4 +75,11 @@ export interface DesignState {
   selectedId: string | null;
   /** Custom phone model name when modelId === 'other'. */
   customPhoneModel?: string;
+  /**
+   * Phone (device) color id — the color of the customer's phone, NOT the case.
+   * Use 'custom' to mean "use customPhoneColorHex instead".
+   */
+  phoneColorId: string;
+  /** Hex color picked by the user when phoneColorId === 'custom'. */
+  customPhoneColorHex?: string;
 }

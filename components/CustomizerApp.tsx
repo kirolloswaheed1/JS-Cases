@@ -3,6 +3,12 @@
 import { useCallback, useMemo, useState } from 'react';
 import { PHONE_MODELS, DEFAULT_MODEL_ID, getModel } from '@/lib/phone-models';
 import { CASE_COLORS, DEFAULT_CASE_COLOR } from '@/lib/case-colors';
+import {
+  PHONE_COLORS,
+  DEFAULT_PHONE_COLOR_ID,
+  CUSTOM_PHONE_COLOR_ID,
+  getPhoneColor,
+} from '@/lib/phone-colors';
 import type { DesignObject, ImageObject, TextObject, StickerObject } from '@/lib/design-types';
 import { generateDesignId } from '@/lib/design-id';
 import { validateDesign, hasBlockingErrors, type ValidationIssue } from '@/lib/validation';
@@ -31,6 +37,9 @@ export default function CustomizerApp() {
     CASE_COLORS.find((c) => c.id === DEFAULT_CASE_COLOR)?.hex ?? '#FFFFFF'
   );
   const [backgroundColor, setBackgroundColor] = useState<string>('transparent');
+  // Phone (device) color — the color of the customer's actual phone, NOT the case.
+  const [phoneColorId, setPhoneColorId] = useState<string>(DEFAULT_PHONE_COLOR_ID);
+  const [customPhoneColorHex, setCustomPhoneColorHex] = useState<string>('#888888');
   const [objects, setObjects] = useState<DesignObject[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>('product');
@@ -47,6 +56,12 @@ export default function CustomizerApp() {
   }>({ state: 'idle' });
 
   const model = useMemo(() => getModel(modelId), [modelId]);
+  // Resolved phone color (id → name + hex). Used by the canvas backdrop,
+  // the cart summary, the Shopify properties, and the design JSON.
+  const resolvedPhoneColor = useMemo(
+    () => getPhoneColor(phoneColorId, customPhoneColorHex),
+    [phoneColorId, customPhoneColorHex]
+  );
   const issues: ValidationIssue[] = useMemo(
     () => validateDesign(objects, model),
     [objects, model]
@@ -262,6 +277,13 @@ export default function CustomizerApp() {
       rows.push({ label: 'Custom Phone Model', value: trimmedCustomModel });
     }
     rows.push({
+      label: 'Phone Color',
+      value:
+        phoneColorId === CUSTOM_PHONE_COLOR_ID
+          ? `Custom (${resolvedPhoneColor.hex.toUpperCase()})`
+          : resolvedPhoneColor.name,
+    });
+    rows.push({
       label: 'Case Type',
       value: caseType === 'transparent' ? 'Transparent' : 'Solid Color',
     });
@@ -270,7 +292,7 @@ export default function CustomizerApp() {
     }
     rows.push({ label: 'Customized Case', value: 'Yes' });
     return rows;
-  }, [model, caseType, caseColor, customPhoneModel]);
+  }, [model, caseType, caseColor, customPhoneModel, phoneColorId, resolvedPhoneColor]);
 
   const handleAddToCart = useCallback(async () => {
     if (objects.length === 0) {
@@ -309,7 +331,12 @@ export default function CustomizerApp() {
         backgroundColor,
         model,
         designId,
-        model.isOther ? trimmedCustomModel : undefined
+        model.isOther ? trimmedCustomModel : undefined,
+        {
+          id: resolvedPhoneColor.id,
+          name: resolvedPhoneColor.name,
+          value: resolvedPhoneColor.hex,
+        }
       );
 
       setStatus({ state: 'uploading', message: 'Uploading design…' });
@@ -344,6 +371,9 @@ export default function CustomizerApp() {
       const properties: Record<string, string> = {
         'Customized Case': 'Yes',
         'Phone Model': model.isOther ? 'Other' : model.name,
+        'Phone Color':
+          phoneColorId === CUSTOM_PHONE_COLOR_ID ? 'Custom' : resolvedPhoneColor.name,
+        'Phone Color Hex': resolvedPhoneColor.hex,
         'Case Type': caseType === 'transparent' ? 'Transparent' : 'Solid Color',
         'Design ID': designId,
         'Preview URL': previewUrl,
@@ -375,7 +405,7 @@ export default function CustomizerApp() {
         message: "We couldn't prepare your design. Please try again.",
       });
     }
-  }, [objects, blocking, model, caseType, caseColor, backgroundColor, customPhoneModel]);
+  }, [objects, blocking, model, caseType, caseColor, backgroundColor, customPhoneModel, phoneColorId, resolvedPhoneColor]);
 
   /* ---------------- Render ---------------- */
 
@@ -399,6 +429,7 @@ export default function CustomizerApp() {
               model={model}
               caseType={caseType}
               caseColor={caseColor}
+              phoneBodyColor={resolvedPhoneColor.hex}
               backgroundColor={backgroundColor}
               objects={objects}
               selectedId={null}
@@ -492,7 +523,7 @@ export default function CustomizerApp() {
       </div>
 
       {/* Main grid */}
-      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-44 md:pb-12">
+      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-20 md:pb-12">
         <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_320px] gap-4 lg:gap-6">
           {/* Left column — tools (desktop only) */}
           <aside className="hidden lg:block">
@@ -502,11 +533,15 @@ export default function CustomizerApp() {
                 <ProductOptions
                   modelId={modelId}
                   customPhoneModel={customPhoneModel}
+                  phoneColorId={phoneColorId}
+                  customPhoneColorHex={customPhoneColorHex}
                   caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
                   onCustomPhoneModelChange={setCustomPhoneModel}
+                  onPhoneColorChange={setPhoneColorId}
+                  onCustomPhoneColorHexChange={setCustomPhoneColorHex}
                   onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
@@ -533,11 +568,15 @@ export default function CustomizerApp() {
                 <ProductOptions
                   modelId={modelId}
                   customPhoneModel={customPhoneModel}
+                  phoneColorId={phoneColorId}
+                  customPhoneColorHex={customPhoneColorHex}
                   caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
                   onCustomPhoneModelChange={setCustomPhoneModel}
+                  onPhoneColorChange={setPhoneColorId}
+                  onCustomPhoneColorHexChange={setCustomPhoneColorHex}
                   onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
@@ -563,6 +602,7 @@ export default function CustomizerApp() {
               model={model}
               caseType={caseType}
               caseColor={caseColor}
+              phoneBodyColor={resolvedPhoneColor.hex}
               backgroundColor={backgroundColor}
               objects={objects}
               selectedId={selectedId}
@@ -589,56 +629,89 @@ export default function CustomizerApp() {
         </div>
       </div>
 
-      {/* Mobile tools drawer — collapsible so the phone preview stays the focus */}
+      {/* Mobile tools drawer — slides up from the bottom like a shutter.
+          Collapsed: only the handle peeks above the bottom of the screen,
+          so the phone preview remains the main focus.
+          Expanded: drawer translates up to reveal tabs, tool controls, and
+          the Add to Cart panel. Content scrolls internally inside the
+          expanded drawer; phone preview stays visible above it. */}
       <div className="lg:hidden">
         {/* Dimmer behind the expanded drawer */}
-        {drawerOpen && (
-          <div
-            className="fixed inset-0 bg-black/20 z-20"
-            onClick={() => setDrawerOpen(false)}
-            aria-hidden="true"
-          />
-        )}
+        <div
+          className={`fixed inset-0 z-20 transition-opacity duration-300 ease-out bg-black/25 ${
+            drawerOpen ? 'opacity-100 pointer-events-auto' : 'opacity-0 pointer-events-none'
+          }`}
+          onClick={() => setDrawerOpen(false)}
+          aria-hidden="true"
+        />
 
         <div
-          className={`fixed bottom-0 left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-soft z-30 rounded-t-card transition-transform duration-300 ease-out ${
-            drawerOpen ? 'translate-y-0' : 'translate-y-0'
-          }`}
+          className="fixed bottom-0 left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-pop z-30 rounded-t-card flex flex-col"
+          style={{
+            // Cap total drawer height so the phone preview stays visible above it.
+            maxHeight: '78vh',
+            // Shutter slide: collapsed pushes everything off-screen except the
+            // ~52px handle row at the top of the drawer.
+            transform: drawerOpen ? 'translateY(0)' : 'translateY(calc(100% - 52px))',
+            transition: 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
+            willChange: 'transform',
+          }}
+          aria-hidden={!drawerOpen}
         >
-          {/* Drawer handle / toggle */}
+          {/* Drawer handle — always visible. Tapping it toggles the shutter. */}
           <button
             onClick={() => setDrawerOpen((v) => !v)}
-            className="w-full flex flex-col items-center pt-2 pb-1 active:bg-brand-cream/60 rounded-t-card"
+            className="shrink-0 w-full flex flex-col items-center pt-2 pb-1.5 active:bg-brand-cream/60 rounded-t-card"
             aria-expanded={drawerOpen}
+            aria-controls="tools-drawer-content"
             aria-label={drawerOpen ? 'Hide tools' : 'Show tools'}
           >
             <span className="w-10 h-1.5 rounded-pill bg-brand-stroke mb-1" />
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
-              Tools
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
-                style={{ transform: drawerOpen ? 'rotate(180deg)' : 'none', transition: 'transform 200ms' }}>
+              {drawerOpen ? 'Hide tools' : 'Tools'}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2.5"
+                style={{
+                  transform: drawerOpen ? 'rotate(180deg)' : 'none',
+                  transition: 'transform 250ms ease-out',
+                }}
+              >
                 <path d="M18 15l-6-6-6 6" strokeLinecap="round" strokeLinejoin="round" />
               </svg>
             </span>
           </button>
 
-          {/* Tabs — always visible */}
-          <div className="px-3 pb-2">
-            <Toolbar activeTab={activeTab} onChange={handleMobileTab} mobile />
-          </div>
+          {/* Scrollable drawer body — tabs + active tool panel + add to cart.
+              This whole block is below the fold when the drawer is collapsed
+              (pushed off-screen by the translateY above). Internal scroll
+              when content exceeds the available height. */}
+          <div
+            id="tools-drawer-content"
+            className="flex-1 overflow-y-auto scrollbar-thin"
+          >
+            <div className="px-3 pt-1">
+              <Toolbar activeTab={activeTab} onChange={handleMobileTab} mobile />
+            </div>
 
-          {/* Expandable tool controls — only mounted when open */}
-          {drawerOpen && (
-            <div className="px-3 pb-3 max-h-[45vh] overflow-y-auto scrollbar-thin">
+            <div className="px-3 py-3 max-h-[45vh] overflow-y-auto scrollbar-thin">
               {activeTab === 'product' && (
                 <ProductOptions
                   modelId={modelId}
                   customPhoneModel={customPhoneModel}
+                  phoneColorId={phoneColorId}
+                  customPhoneColorHex={customPhoneColorHex}
                   caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
                   onCustomPhoneModelChange={setCustomPhoneModel}
+                  onPhoneColorChange={setPhoneColorId}
+                  onCustomPhoneColorHexChange={setCustomPhoneColorHex}
                   onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
@@ -663,11 +736,15 @@ export default function CustomizerApp() {
                 <ProductOptions
                   modelId={modelId}
                   customPhoneModel={customPhoneModel}
+                  phoneColorId={phoneColorId}
+                  customPhoneColorHex={customPhoneColorHex}
                   caseType={caseType}
                   caseColor={caseColor}
                   backgroundColor={backgroundColor}
                   onModelChange={setModelId}
                   onCustomPhoneModelChange={setCustomPhoneModel}
+                  onPhoneColorChange={setPhoneColorId}
+                  onCustomPhoneColorHexChange={setCustomPhoneColorHex}
                   onCaseTypeChange={setCaseType}
                   onCaseColorChange={setCaseColor}
                   onBackgroundChange={setBackgroundColor}
@@ -685,21 +762,23 @@ export default function CustomizerApp() {
                 />
               )}
             </div>
-          )}
 
-          {/* Always-visible bottom bar: validation + add to cart */}
-          <div className="border-t border-brand-stroke px-3 py-3 bg-brand-paper">
-            {drawerOpen && <ValidationPanel issues={issues} compact />}
-            <div className={drawerOpen ? 'mt-2' : ''}>
-              <AddToCartPanel
-                model={model}
-                caseColor={caseColor}
-                objectCount={objects.length}
-                status={status}
-                disabled={blocking}
-                onAdd={openSummary}
-                compact
-              />
+            {/* Bottom bar: validation + Add to Cart, inside the drawer body
+                so the whole shutter slides together. When the drawer is
+                collapsed these are off-screen along with everything else. */}
+            <div className="border-t border-brand-stroke px-3 py-3 bg-brand-paper">
+              <ValidationPanel issues={issues} compact />
+              <div className="mt-2">
+                <AddToCartPanel
+                  model={model}
+                  caseColor={caseColor}
+                  objectCount={objects.length}
+                  status={status}
+                  disabled={blocking}
+                  onAdd={openSummary}
+                  compact
+                />
+              </div>
             </div>
           </div>
         </div>

@@ -24,6 +24,8 @@ interface Props {
   model: PhoneModel;
   caseType: 'solid' | 'transparent';
   caseColor: string;
+  /** Phone device body color (resolved hex). Shows behind/around the case. */
+  phoneBodyColor: string;
   backgroundColor: string;
   objects: DesignObject[];
   selectedId: string | null;
@@ -221,6 +223,7 @@ export default function PhoneCanvas({
   model,
   caseType,
   caseColor,
+  phoneBodyColor,
   backgroundColor,
   objects,
   selectedId,
@@ -288,6 +291,21 @@ export default function PhoneCanvas({
           }}
         >
           <Layer>
+            {/* Phone body backdrop — the customer's device color, drawn at
+                the canvas dimensions so it shows around the case edges and
+                everywhere a transparent case lets light through. For solid
+                cases it only peeks at the edges (the case rect sits inside
+                it); for transparent cases it's the entire backdrop the
+                design floats on. Non-interactive. */}
+            <Rect
+              x={0}
+              y={0}
+              width={model.canvas.width}
+              height={model.canvas.height}
+              fill={phoneBodyColor}
+              cornerRadius={model.safeArea.radius * 1.4}
+              listening={false}
+            />
             {caseType === 'transparent' ? (
               /* Clear case: when there's a mockupImage we let the outline
                  in the mockup overlay communicate the case shape — drawing

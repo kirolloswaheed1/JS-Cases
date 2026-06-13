@@ -22,6 +22,7 @@ export interface SanitizedDesignJson {
   designId: string;
   phoneModel: string;
   customPhoneModel?: string;
+  phoneColor?: { id: string; name: string; value: string };
   caseType: 'solid' | 'transparent';
   caseColor: string;
   backgroundColor: string;
@@ -112,10 +113,22 @@ export function validateUploadPayload(raw: unknown): UploadDesignPayload {
       ? sanitizeText(dj.customPhoneModel, 80)
       : undefined;
 
+  // phoneColor is optional. Whitelist its three fields and drop anything else.
+  let phoneColor: { id: string; name: string; value: string } | undefined;
+  if (isPlainObject(dj.phoneColor)) {
+    const pc = dj.phoneColor as Record<string, unknown>;
+    const id = typeof pc.id === 'string' ? sanitizeText(pc.id, 40) : '';
+    const name = typeof pc.name === 'string' ? sanitizeText(pc.name, 60) : '';
+    const value =
+      typeof pc.value === 'string' ? sanitizeColor(pc.value, '#000000') : '#000000';
+    if (id) phoneColor = { id, name, value };
+  }
+
   const sanitized: SanitizedDesignJson = {
     designId,
     phoneModel,
     customPhoneModel,
+    phoneColor,
     caseType,
     caseColor:
       caseType === 'transparent' ? 'transparent' : sanitizeColor(dj.caseColor, '#FFFFFF'),

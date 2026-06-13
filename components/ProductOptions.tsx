@@ -2,15 +2,20 @@
 
 import { PHONE_MODELS } from '@/lib/phone-models';
 import { CASE_COLORS } from '@/lib/case-colors';
+import { PHONE_COLORS, CUSTOM_PHONE_COLOR_ID } from '@/lib/phone-colors';
 
 interface Props {
   modelId: string;
   customPhoneModel: string;
+  phoneColorId: string;
+  customPhoneColorHex: string;
   caseType: 'solid' | 'transparent';
   caseColor: string;
   backgroundColor: string;
   onModelChange: (id: string) => void;
   onCustomPhoneModelChange: (v: string) => void;
+  onPhoneColorChange: (id: string) => void;
+  onCustomPhoneColorHexChange: (hex: string) => void;
   onCaseTypeChange: (t: 'solid' | 'transparent') => void;
   onCaseColorChange: (hex: string) => void;
   onBackgroundChange: (hex: string) => void;
@@ -20,11 +25,15 @@ interface Props {
 export default function ProductOptions({
   modelId,
   customPhoneModel,
+  phoneColorId,
+  customPhoneColorHex,
   caseType,
   caseColor,
   backgroundColor,
   onModelChange,
   onCustomPhoneModelChange,
+  onPhoneColorChange,
+  onCustomPhoneColorHexChange,
   onCaseTypeChange,
   onCaseColorChange,
   onBackgroundChange,
@@ -32,6 +41,7 @@ export default function ProductOptions({
 }: Props) {
   const selectedModel = PHONE_MODELS.find((m) => m.id === modelId);
   const isOther = selectedModel?.isOther ?? false;
+  const isCustomPhoneColor = phoneColorId === CUSTOM_PHONE_COLOR_ID;
 
   return (
     <div className="bg-white border border-brand-stroke rounded-card p-4 space-y-5 shadow-card">
@@ -75,6 +85,76 @@ export default function ProductOptions({
               </p>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Phone Color — color of the customer's actual phone, NOT the case.
+          Lets the customer preview how the case will look on their device,
+          especially helpful when the case is Transparent. */}
+      {!showOnlyColors && (
+        <div>
+          <h3 className="font-bold text-sm mb-1">Phone color</h3>
+          <p className="text-xs text-brand-muted mb-2">
+            Choose your phone color to preview how the case will look.
+          </p>
+          <div className="grid grid-cols-5 gap-2">
+            {PHONE_COLORS.map((c) => {
+              const isActive = phoneColorId === c.id;
+              return (
+                <button
+                  key={c.id}
+                  type="button"
+                  onClick={() => onPhoneColorChange(c.id)}
+                  title={c.name}
+                  aria-label={c.name}
+                  aria-pressed={isActive}
+                  className={`aspect-square rounded-full border-2 transition shadow-card ${
+                    isActive
+                      ? 'border-brand-primary scale-105 ring-2 ring-brand-primary/30'
+                      : 'border-white hover:border-brand-stroke'
+                  }`}
+                  style={{ background: c.background || c.hex }}
+                />
+              );
+            })}
+            {/* Custom — opens a native color picker on click */}
+            <label
+              title="Custom color"
+              className={`relative aspect-square rounded-full border-2 cursor-pointer transition overflow-hidden ${
+                isCustomPhoneColor
+                  ? 'border-brand-primary scale-105 ring-2 ring-brand-primary/30'
+                  : 'border-white hover:border-brand-stroke'
+              }`}
+              style={
+                isCustomPhoneColor
+                  ? { background: customPhoneColorHex || '#888888' }
+                  : { background: 'conic-gradient(from 210deg, #ff5e5b, #ffd166, #06d6a0, #118ab2, #ef476f, #ff5e5b)' }
+              }
+            >
+              <input
+                type="color"
+                value={customPhoneColorHex || '#888888'}
+                onChange={(e) => {
+                  if (!isCustomPhoneColor) onPhoneColorChange(CUSTOM_PHONE_COLOR_ID);
+                  onCustomPhoneColorHexChange(e.target.value);
+                }}
+                onClick={() => {
+                  if (!isCustomPhoneColor) onPhoneColorChange(CUSTOM_PHONE_COLOR_ID);
+                }}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+              />
+              {!isCustomPhoneColor && (
+                <span className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white drop-shadow">
+                  +
+                </span>
+              )}
+            </label>
+          </div>
+          <p className="text-xs text-brand-muted mt-2">
+            {isCustomPhoneColor
+              ? `Custom (${(customPhoneColorHex || '#888888').toUpperCase()})`
+              : PHONE_COLORS.find((c) => c.id === phoneColorId)?.name ?? ''}
+          </p>
         </div>
       )}
 

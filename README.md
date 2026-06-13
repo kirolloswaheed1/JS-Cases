@@ -617,3 +617,45 @@ editing" closes the modal without doing anything.
 All changes are incremental — phone model selector, case colors, image
 upload, text tools, stickers library, Shopify redirect, security headers,
 mockup overlay layer, and camera-mask logic are untouched.
+
+---
+
+## Phone color (device color)
+
+Customers can pick the color of their actual phone (not the case) so they can
+preview how the case will look on their device. This is most useful for
+transparent cases, where the phone color shows directly through the case.
+
+- Library: `lib/phone-colors.ts` — preset list (`PHONE_COLORS`) plus a
+  `Custom` option that opens a native color picker.
+- State: `phoneColorId` + `customPhoneColorHex` live in `CustomizerApp.tsx`.
+- Visual: `PhoneCanvas.tsx` paints a rounded-rect backdrop in the chosen
+  phone color BEFORE the case fill / mockup / design objects. For transparent
+  cases the color shows through; for solid cases it shows around the
+  case-color rect at the edges.
+- Design JSON: stored under `phoneColor: { id, name, value }`.
+- Shopify line item properties: `Phone Color` (name, or `Custom`) and
+  `Phone Color Hex` (resolved hex). Both are always sent.
+
+To add a new preset color, append to `PHONE_COLORS` in `lib/phone-colors.ts`.
+The `id` should be a lowercase slug — it's persisted in design JSON, so don't
+rename existing ones.
+
+## Mobile shutter
+
+The mobile tools drawer now slides up and down as a single unit, like a
+window shutter:
+
+- Collapsed (default): a 52px handle peeks above the bottom of the screen,
+  showing the text **Tools** and an upward chevron. The phone preview fills
+  the rest of the viewport.
+- Tapping the handle slides the entire drawer up (~320ms cubic-bezier
+  transition). Inside: tabs, the active tool panel (max 45vh, scrolls
+  internally), validation messages, and the Add to Cart button.
+- The handle text becomes **Hide tools** and the chevron rotates 180°.
+- A semi-transparent dimmer fades in behind the open drawer; tapping it
+  collapses the drawer.
+
+Total drawer height is capped at 78vh so the phone preview is never fully
+hidden. The slide uses `transform: translateY(calc(100% - 52px))` ↔
+`translateY(0)` — no JS layout work happens during the animation.

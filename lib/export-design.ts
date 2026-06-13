@@ -183,7 +183,8 @@ export async function exportDesign(
   backgroundColor: string,
   model: PhoneModel,
   designId: string,
-  customPhoneModel?: string
+  customPhoneModel?: string,
+  phoneColor?: { id: string; name: string; value: string }
 ): Promise<ExportResult> {
   const printScale = model.print.width / model.canvas.width;
 
@@ -210,7 +211,7 @@ export async function exportDesign(
   );
 
   const designJson = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     designId,
     createdAt: new Date().toISOString(),
     // Top-level fields the upload validator requires:
@@ -224,6 +225,10 @@ export async function exportDesign(
       canvas: model.canvas,
       print: model.print,
     },
+    // Phone (device) color — distinct from caseColor.
+    phoneColor: phoneColor
+      ? { id: phoneColor.id, name: phoneColor.name, value: phoneColor.value }
+      : undefined,
     caseType,
     caseColor: caseType === 'transparent' ? 'transparent' : caseColor,
     backgroundColor,
