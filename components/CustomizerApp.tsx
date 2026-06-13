@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { PHONE_MODELS, DEFAULT_MODEL_ID, getModel } from '@/lib/phone-models';
 import { CASE_COLORS, DEFAULT_CASE_COLOR } from '@/lib/case-colors';
 import {
@@ -45,6 +45,11 @@ export default function CustomizerApp() {
   const [activeTab, setActiveTab] = useState<Tab>('product');
   // Mobile tools drawer — collapsed by default so the phone preview is the focus.
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
+  // Live drag offset (px) applied on top of the drawer's snapped position.
+  // Positive = dragging down, negative = dragging up. Zero when not dragging.
+  const [dragOffset, setDragOffset] = useState<number>(0);
+  // Drag state held in a ref so pointermove handlers don't re-render on every event.
+  const dragStateRef = useRef<{ y: number; openAtStart: boolean; moved: boolean } | null>(null);
   // Preview mode — hides all editor chrome for a clean look before checkout.
   const [previewMode, setPreviewMode] = useState<boolean>(false);
   // Cart summary modal — shown before the final Shopify redirect so the
@@ -90,6 +95,77 @@ export default function CustomizerApp() {
     setActiveTab(tab);
     setDrawerOpen(true);
   }, []);
+
+  /* ---------------- Drawer drag gesture (mobile) ----------------
+   *
+   * Attached only to the drawer handle so it never fights with sliders,
+   * scrolling stickers, or color pickers inside the drawer body. Uses
+   * pointer events (unified mouse/touch) with setPointerCapture so the drag
+   * keeps tracking even when the finger leaves the handle.
+   *
+   * Behavior:
+   *   - tap (no movement)         → toggle drawerOpen
+   *   - drag down > 50px while open  → close
+   *   - drag up   > 50px while closed → open
+   *   - smaller drag              → snap back (no state change, dragOffset
+   *                                 resets to 0 → CSS transition animates)
+   */
+  const TAP_MOVEMENT_THRESHOLD = 6;   // px — below this we treat the gesture as a tap
+  const DRAG_SNAP_THRESHOLD = 50;     // px — how far past base before we flip state
+
+  const handleHandlePointerDown = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      // Mouse: only respond to left button. Touch / pen: always.
+      if (e.pointerType === 'mouse' && e.button !== 0) return;
+      try {
+        e.currentTarget.setPointerCapture(e.pointerId);
+      } catch {
+        /* setPointerCapture can throw if the pointer is already captured elsewhere — safe to ignore */
+      }
+      dragStateRef.current = {
+        y: e.clientY,
+        openAtStart: drawerOpen,
+        moved: false,
+      };
+    },
+    [drawerOpen]
+  );
+
+  const handleHandlePointerMove = useCallback(
+    (e: React.PointerEvent<HTMLButtonElement>) => {
+      const ds = dragStateRef.current;
+      if (!ds) return;
+      const delta = e.clientY - ds.y;
+      if (Math.abs(delta) > TAP_MOVEMENT_THRESHOLD) ds.moved = true;
+      // Clamp: when the drawer is OPEN, only allow dragging DOWN (positive
+      // delta). When CLOSED, only allow dragging UP (negative delta). This
+      // prevents the drawer from over-shooting its snapped positions.
+      const clamped = ds.openAtStart ? Math.max(0, delta) : Math.min(0, delta);
+      setDragOffset(clamped);
+    },
+    []
+  );
+
+  const handleHandlePointerEnd = useCallback(() => {
+    const ds = dragStateRef.current;
+    if (!ds) return;
+    const { openAtStart, moved } = ds;
+
+    if (!moved) {
+      // Treated as a tap — toggle.
+      setDrawerOpen(!openAtStart);
+    } else if (openAtStart && dragOffset > DRAG_SNAP_THRESHOLD) {
+      setDrawerOpen(false);
+    } else if (!openAtStart && dragOffset < -DRAG_SNAP_THRESHOLD) {
+      setDrawerOpen(true);
+    }
+    // Otherwise the user dragged but not past the threshold → snap back
+    // (drawerOpen stays as-is; dragOffset resets below and the CSS
+    // transition animates the snap).
+
+    setDragOffset(0);
+    dragStateRef.current = null;
+  }, [dragOffset]);
 
   /* ---------------- Object operations ---------------- */
 
@@ -648,25 +724,53 @@ export default function CustomizerApp() {
         <div
           className="fixed bottom-0 left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-pop z-30 rounded-t-card flex flex-col"
           style={{
-            // Cap total drawer height so the phone preview stays visible above it.
-            maxHeight: '78vh',
+            // Cap total drawer height so the phone preview stays the focus.
+            // Lower than the previous 78vh — most of the viewport now goes to
+            // the design canvas; tool content scrolls internally if needed.
+            maxHeight: '50vh',
             // Shutter slide: collapsed pushes everything off-screen except the
-            // ~52px handle row at the top of the drawer.
-            transform: drawerOpen ? 'translateY(0)' : 'translateY(calc(100% - 52px))',
-            transition: 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
+            // ~52px handle row at the top of the drawer. The `dragOffset`
+            // chain layers the live finger position on top of the snapped
+            // position; both are translateY so they compose naturally.
+            transform: `translateY(${
+              drawerOpen ? '0px' : 'calc(100% - 52px)'
+            }) translateY(${dragOffset}px)`,
+            // Disable the smooth transition while the user is actively
+            // dragging — they should feel a 1:1 connection between finger
+            // and drawer. When the drag ends (dragOffset → 0) the transition
+            // kicks back in and animates the snap.
+            transition:
+              dragOffset !== 0
+                ? 'none'
+                : 'transform 320ms cubic-bezier(0.32, 0.72, 0, 1)',
             willChange: 'transform',
           }}
           aria-hidden={!drawerOpen}
         >
-          {/* Drawer handle — always visible. Tapping it toggles the shutter. */}
+          {/* Drawer handle — tap to toggle, OR drag with finger.
+              touchAction:none stops the browser from scrolling the page
+              while the user is dragging on the handle. */}
           <button
-            onClick={() => setDrawerOpen((v) => !v)}
-            className="shrink-0 w-full flex flex-col items-center pt-2 pb-1.5 active:bg-brand-cream/60 rounded-t-card"
+            type="button"
+            onPointerDown={handleHandlePointerDown}
+            onPointerMove={handleHandlePointerMove}
+            onPointerUp={handleHandlePointerEnd}
+            onPointerCancel={handleHandlePointerEnd}
+            onKeyDown={(e) => {
+              // Keep keyboard accessibility — pointer handlers replace onClick.
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setDrawerOpen((v) => !v);
+              }
+            }}
+            className="shrink-0 w-full flex flex-col items-center pt-2.5 pb-1.5 active:bg-brand-cream/60 rounded-t-card cursor-grab active:cursor-grabbing select-none"
+            style={{ touchAction: 'none' }}
             aria-expanded={drawerOpen}
             aria-controls="tools-drawer-content"
             aria-label={drawerOpen ? 'Hide tools' : 'Show tools'}
           >
-            <span className="w-10 h-1.5 rounded-pill bg-brand-stroke mb-1" />
+            {/* Drag bar — slightly chunkier and brand-tinted to invite the gesture */}
+            <span className="w-12 h-1.5 rounded-pill bg-brand-primary/40 mb-1.5" />
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
               {drawerOpen ? 'Hide tools' : 'Tools'}
               <svg
@@ -698,7 +802,7 @@ export default function CustomizerApp() {
               <Toolbar activeTab={activeTab} onChange={handleMobileTab} mobile />
             </div>
 
-            <div className="px-3 py-3 max-h-[45vh] overflow-y-auto scrollbar-thin">
+            <div className="px-3 py-3 max-h-[35vh] overflow-y-auto scrollbar-thin">
               {activeTab === 'product' && (
                 <ProductOptions
                   modelId={modelId}

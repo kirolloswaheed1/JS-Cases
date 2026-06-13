@@ -659,3 +659,48 @@ window shutter:
 Total drawer height is capped at 78vh so the phone preview is never fully
 hidden. The slide uses `transform: translateY(calc(100% - 52px))` ↔
 `translateY(0)` — no JS layout work happens during the animation.
+
+---
+
+## Mobile drawer: draggable + tighter
+
+Two refinements on top of the existing shutter-style drawer:
+
+### Smaller open height
+- Total drawer `max-height` reduced from 78vh to **50vh** — at least half the
+  viewport is now reserved for the phone preview, even when the drawer is
+  fully open.
+- Inner tool-content scroll cap reduced from 45vh to **35vh**. Tabs +
+  validation + Add to Cart stay on screen; long tool panels (sticker grid,
+  Layers list) scroll internally.
+- Collapsed state unchanged: only the 52px handle peeks above the bottom.
+
+### Touch drag / swipe
+The handle is now draggable in addition to tappable. Implemented with
+**Pointer Events** (a unified mouse + touch + pen API, no library needed).
+
+| Gesture | Result |
+|---|---|
+| Tap handle | Toggle drawer |
+| Drag handle **down >50px** while open | Close drawer |
+| Drag handle **up >50px** while closed | Open drawer |
+| Drag <50px | Snap back to current state (animated) |
+| Drag drawer beyond its snapped position | Clamped — can't over-shoot |
+
+Implementation notes (`components/CustomizerApp.tsx`):
+
+- `dragOffset` state holds the live finger displacement; chained as a second
+  `translateY(...)` after the snapped base position so they compose without
+  any layout math.
+- CSS transition is **disabled while dragging** (`transition: 'none'`) so the
+  drawer follows the finger 1:1, then re-enabled on release so the snap-back
+  animates smoothly.
+- `setPointerCapture` keeps the pointer events flowing to the handle even
+  when the finger drifts off it during the drag.
+- `touchAction: 'none'` on the handle stops the browser from scrolling the
+  page while the customer is dragging.
+- The drag area is **only** the handle button — sliders, color pickers, the
+  sticker grid, and the Layers panel inside the drawer body still scroll
+  and interact normally.
+- Keyboard accessibility preserved: Enter / Space on the focused handle
+  toggles the drawer (replaced the removed onClick).
