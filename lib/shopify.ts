@@ -44,3 +44,32 @@ export function buildShopifyCartUrl(input: BuildCartUrlInput): string {
 
   return `${base}?${params.toString()}`;
 }
+
+/**
+ * Pick the Shopify variant ID to use for an Add to Cart redirect.
+ *
+ * The store only needs ONE product/variant for the custom case — the phone
+ * model is carried as a line item property, not as a Shopify variant. If the
+ * store later wants different prices per case type, they can configure
+ * separate variants by setting the optional case-type-specific env vars.
+ *
+ * Resolution order:
+ *   1. `NEXT_PUBLIC_SOLID_CASE_VARIANT_ID` / `NEXT_PUBLIC_TRANSPARENT_CASE_VARIANT_ID`
+ *      if set for the active case type.
+ *   2. `NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID` as the shared fallback.
+ *   3. `null` if nothing is configured (or only placeholders are set) — the
+ *      caller must show an error and refuse to redirect.
+ */
+export function resolveCartVariantId(
+  caseType: 'solid' | 'transparent'
+): string | null {
+  const perType =
+    caseType === 'transparent'
+      ? process.env.NEXT_PUBLIC_TRANSPARENT_CASE_VARIANT_ID
+      : process.env.NEXT_PUBLIC_SOLID_CASE_VARIANT_ID;
+  const fallback = process.env.NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID;
+  const id = (perType || fallback || '').trim();
+  if (!id) return null;
+  if (id.startsWith('REPLACE_')) return null;
+  return id;
+}

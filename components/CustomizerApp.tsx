@@ -13,7 +13,7 @@ import type { DesignObject, ImageObject, TextObject, StickerObject } from '@/lib
 import { generateDesignId } from '@/lib/design-id';
 import { validateDesign, hasBlockingErrors, type ValidationIssue } from '@/lib/validation';
 import { exportDesign } from '@/lib/export-design';
-import { buildShopifyCartUrl } from '@/lib/shopify';
+import { buildShopifyCartUrl, resolveCartVariantId } from '@/lib/shopify';
 import type { AssetItem } from '@/lib/assets-library';
 import PhoneCanvas from './PhoneCanvas';
 import Toolbar from './Toolbar';
@@ -325,9 +325,9 @@ export default function CustomizerApp() {
       alert('Please type your phone model before adding to cart.');
       return;
     }
-    if (model.shopifyVariantId.startsWith('REPLACE_')) {
+    if (!resolveCartVariantId(caseType)) {
       alert(
-        'This phone model does not yet have a Shopify variant ID configured. The store owner needs to update lib/phone-models.ts.'
+        'The custom case Shopify variant ID is not configured yet. The store owner needs to set NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID in the deployment environment.'
       );
       return;
     }
@@ -383,9 +383,9 @@ export default function CustomizerApp() {
       alert('Please type your phone model before adding to cart.');
       return;
     }
-    if (model.shopifyVariantId.startsWith('REPLACE_')) {
+    if (!resolveCartVariantId(caseType)) {
       alert(
-        'This phone model does not yet have a Shopify variant ID configured. The store owner needs to update lib/phone-models.ts.'
+        'The custom case Shopify variant ID is not configured yet. The store owner needs to set NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID in the deployment environment.'
       );
       return;
     }
@@ -463,9 +463,14 @@ export default function CustomizerApp() {
         properties['Case Color'] = caseColorName;
       }
 
+      // Resolve Shopify variant id from the env vars (one shared variant for
+      // all custom cases, with optional case-type overrides). We already
+      // gated on this being set in openSummary, so the !-assertion is safe.
+      const cartVariantId = resolveCartVariantId(caseType)!;
+
       const cartUrl = buildShopifyCartUrl({
         shopDomain,
-        variantId: model.shopifyVariantId,
+        variantId: cartVariantId,
         quantity: 1,
         properties,
       });

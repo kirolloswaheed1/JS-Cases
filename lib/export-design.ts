@@ -221,7 +221,8 @@ export async function exportDesign(
     model: {
       id: model.id,
       name: model.name,
-      shopifyVariantId: model.shopifyVariantId,
+      // shopifyVariantId intentionally omitted — phone model no longer maps
+      // to a Shopify variant; it's sent as a line item property instead.
       canvas: model.canvas,
       print: model.print,
     },

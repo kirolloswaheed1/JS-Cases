@@ -9,6 +9,13 @@
  * Samsung models and the "Other / Not listed" placeholder have no mockup
  * yet — they fall back to the generic rounded-rect case rendering.
  *
+ * NOTE — Shopify integration: phone model is NOT mapped to a Shopify
+ * variant anymore. The cart redirect uses
+ * NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID (one shared variant for all
+ * custom cases) and sends Phone Model as a Shopify line item property
+ * instead. The `shopifyVariantId` field on each entry is now optional and
+ * unused; the placeholder values can stay or be removed at will.
+ *
  * To FINE-TUNE the safe area or camera cutout for a specific model: just
  * edit the numbers below. They’re in canvas pixel coordinates relative
  * to the top-left of the mockup.
@@ -18,7 +25,15 @@ export interface PhoneModel {
   id: string;
   name: string;
   brand: 'iPhone' | 'Samsung' | 'Other';
-  shopifyVariantId: string;
+  /**
+   * @deprecated Phone model is no longer mapped to a Shopify variant. The
+   * cart redirect uses NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID (and
+   * optionally NEXT_PUBLIC_SOLID_CASE_VARIANT_ID / NEXT_PUBLIC_TRANSPARENT_CASE_VARIANT_ID)
+   * for the variant, and sends Phone Model as a line item property. This
+   * field is kept optional for backwards compatibility — leaving the
+   * placeholder values in existing entries is harmless.
+   */
+  shopifyVariantId?: string;
   mockupImage?: string;
   canvas: { width: number; height: number };
   print: { width: number; height: number };
@@ -28,8 +43,7 @@ export interface PhoneModel {
   isOther?: boolean;
 }
 
-// NOTE: replace each `shopifyVariantId` with the real numeric variant ID
-// from Shopify Admin → Products → [product] → Variants.
+// `shopifyVariantId` below is optional and unused — see file header.
 export const PHONE_MODELS: PhoneModel[] = [
   {
     id: 'iphone-17-pro-max',

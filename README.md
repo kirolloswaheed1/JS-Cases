@@ -73,20 +73,36 @@ NEXT_PUBLIC_SHOPIFY_DOMAIN=jscases.co
 
 Use the primary domain (not `*.myshopify.com`) so the checkout stays branded.
 
-### 2. Set the Shopify variant IDs for each phone model
+### 2. Set the Shopify variant ID for the custom case
 
-Open `lib/phone-models.ts`. Each phone model has a `shopifyVariantId` field
-that currently reads `REPLACE_WITH_SHOPIFY_VARIANT_ID`. Replace each one with
-the numeric variant ID from Shopify.
+The customizer needs **one** Shopify variant — phone model is sent as a line
+item property, not as a Shopify variant. Set this env var (locally in
+`.env.local` and on Vercel under Settings → Environment Variables):
 
-**Where to find a variant ID in Shopify Admin:**
-Shopify Admin → Products → click the customizable case product → click the
-variant for that phone model. The URL ends with `/variants/{NUMERIC_ID}` —
-that number is what you paste in.
+```
+NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID=<your-variant-id>
+```
 
-If you sell one product with one variant per phone model, you'll paste a
-unique ID per model. If you sell separate products per phone, set the variant
-ID of the relevant product on each model.
+**How to find the variant ID:** Shopify Admin → Products → click your
+"Custom Phone Case" product → click any variant. The URL ends with
+`/variants/{NUMERIC_ID}` — that number is what you paste in.
+
+**Optional: per-case-type pricing.** If you want different prices for solid
+vs transparent cases, create two variants on the same product (e.g. by a
+"Case Type" option) and set:
+
+```
+NEXT_PUBLIC_SOLID_CASE_VARIANT_ID=<id-for-solid>
+NEXT_PUBLIC_TRANSPARENT_CASE_VARIANT_ID=<id-for-transparent>
+```
+
+When either is set, the customizer uses it for the matching case type.
+When neither is set, the default above is used for both. You don't need any
+variants for phone models — phone model lives on the line item properties.
+
+The legacy `shopifyVariantId` field still on each entry in
+`lib/phone-models.ts` is now **optional and unused**. You can leave the
+`REPLACE_WITH_SHOPIFY_VARIANT_ID` placeholders alone — they're never read.
 
 ### 3. Test the add-to-cart flow
 
@@ -96,8 +112,12 @@ ID of the relevant product on each model.
 4. You should be redirected to `https://jscases.co/cart/{variantId}:1?attributes[...]`.
 5. The Shopify cart should show the item with these line item properties:
    - `Customized Case: Yes`
-   - `Phone Model: iPhone 15 Pro Max`
-   - `Case Color: Black`
+   - `Phone Model: iPhone 15 Pro Max` (or `Other` for the "Other" model)
+   - `Custom Phone Model: <typed value>` (only when "Other" is picked)
+   - `Phone Color: Black` (or `Custom` when the customer picks a custom color)
+   - `Phone Color Hex: #111111`
+   - `Case Type: Solid Color` or `Transparent`
+   - `Case Color: White` (only for solid cases)
    - `Design ID: JS-CASE-...`
    - `Preview URL: https://...`
    - `Print File URL: https://...`
@@ -704,3 +724,32 @@ Implementation notes (`components/CustomizerApp.tsx`):
   and interact normally.
 - Keyboard accessibility preserved: Enter / Space on the focused handle
   toggles the drawer (replaced the removed onClick).
+
+---
+
+## Shopify integration — single variant + line item properties
+
+The customizer now uses **one shared Shopify variant** for all custom cases.
+Phone model is no longer mapped to a Shopify variant — it's carried as a
+line item property on the cart line. This means:
+
+- You create **one product** in Shopify ("Custom Phone Case"), with **one
+  variant** (or up to two if you want different prices per case type).
+- You set `NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID` in the environment
+  to that variant's numeric ID.
+- Every Add to Cart redirect uses that variant ID, and every customer
+  choice — phone model, case type, case color, phone color, the design
+  files, etc. — is attached as line item properties on the order.
+- The `shopifyVariantId` field still on each entry in `lib/phone-models.ts`
+  is **optional and unused**. Existing placeholder values are harmless;
+  they're never read by the cart flow.
+
+`lib/shopify.ts` exports a `resolveCartVariantId(caseType)` helper that
+picks the right variant:
+
+1. `NEXT_PUBLIC_SOLID_CASE_VARIANT_ID` / `NEXT_PUBLIC_TRANSPARENT_CASE_VARIANT_ID`
+   if set for the active case type.
+2. `NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID` as the shared fallback.
+3. `null` if neither is set or if only `REPLACE_…` placeholders are
+   present — in which case Add to Cart shows a clear setup-needed error
+   and refuses to redirect.
