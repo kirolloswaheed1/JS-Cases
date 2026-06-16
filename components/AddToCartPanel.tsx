@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 import type { PhoneModel } from '@/lib/phone-models';
 import { CASE_COLORS } from '@/lib/case-colors';
 
@@ -16,15 +18,6 @@ interface Props {
   compact?: boolean;
 }
 
-const STATUS_LABEL: Record<Props['status']['state'], string> = {
-  idle: 'Add Custom Case to Cart',
-  exporting: 'Preparing print file…',
-  uploading: 'Uploading design…',
-  redirecting: 'Redirecting to checkout…',
-  success: 'Done!',
-  error: 'Try again',
-};
-
 export default function AddToCartPanel({
   model,
   caseColor,
@@ -34,6 +27,15 @@ export default function AddToCartPanel({
   onAdd,
   compact,
 }: Props) {
+  const { t } = useLanguage();
+  const STATUS_LABEL: Record<Props['status']['state'], string> = {
+    idle: t('addToCart'),
+    exporting: t('exportingDesign'),
+    uploading: t('uploadingDesign'),
+    redirecting: t('redirectingToCheckout'),
+    success: 'Done!',
+    error: 'Try again',
+  };
   const colorName = CASE_COLORS.find((c) => c.hex === caseColor)?.name ?? caseColor;
   const busy =
     status.state === 'exporting' ||

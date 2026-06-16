@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 import { useRef, useState } from 'react';
 
 interface Props {
@@ -15,6 +17,7 @@ const MAX_DIMENSION = 8000; // px on the longest side
 const LOW_RES_WARN = 800; // warn (don't block) below this on the longest side
 
 export default function ImageTools({ onAddImage }: Props) {
+  const { t } = useLanguage();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragOver, setDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -26,11 +29,11 @@ export default function ImageTools({ onAddImage }: Props) {
     setNotice(null);
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      setError('Please upload a JPG, PNG, or WEBP image under 8MB.');
+      setError(t('uploadErrorType'));
       return;
     }
     if (file.size > MAX_BYTES) {
-      setError('Please upload a JPG, PNG, or WEBP image under 8MB.');
+      setError(t('uploadErrorType'));
       return;
     }
 
@@ -48,7 +51,7 @@ export default function ImageTools({ onAddImage }: Props) {
       }
       if (longest < LOW_RES_WARN) {
         // Warn but still allow — don't crash or block the customer.
-        setNotice('Heads up: this image is low-resolution and may look blurry when printed.');
+        setNotice(t('uploadWarnLowRes'));
       }
 
       onAddImage(dataUrl, width, height);
@@ -61,7 +64,7 @@ export default function ImageTools({ onAddImage }: Props) {
 
   return (
     <div className="bg-brand-paper border border-brand-stroke rounded-card p-4 shadow-card">
-      <h3 className="font-bold text-sm mb-3">Upload an image</h3>
+      <h3 className="font-bold text-sm mb-3">{t('uploadTitle')}</h3>
       <div
         onDragOver={(e) => {
           e.preventDefault();
@@ -98,7 +101,7 @@ export default function ImageTools({ onAddImage }: Props) {
               </svg>
             </div>
             <p className="text-sm font-semibold">Tap to upload</p>
-            <p className="text-xs text-brand-muted mt-1">JPG, PNG, or WEBP up to 8MB</p>
+            <p className="text-xs text-brand-muted mt-1">{t('uploadHelper')}</p>
           </>
         )}
         <input

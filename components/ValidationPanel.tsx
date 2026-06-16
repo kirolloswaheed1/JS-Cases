@@ -1,6 +1,8 @@
 'use client';
 
 import type { ValidationIssue } from '@/lib/validation';
+import { useLanguage } from './LanguageContext';
+import type { TranslationKey } from '@/lib/translations';
 
 interface Props {
   issues: ValidationIssue[];
@@ -28,7 +30,16 @@ const STYLES: Record<
   },
 };
 
+// Translation keys per validation code. Unknown codes fall back to the raw
+// English message from lib/validation.ts so we never render nothing.
+const MESSAGE_KEY_BY_CODE: Record<string, TranslationKey | undefined> = {
+  CAMERA_OVERLAP: 'validationCameraOverlap',
+  OUTSIDE_SAFE_AREA: 'validationOutsideSafeArea',
+  LOW_RESOLUTION: 'uploadWarnLowRes',
+};
+
 export default function ValidationPanel({ issues, compact }: Props) {
+  const { t } = useLanguage();
   const seen = new Set<string>();
   const deduped = issues.filter((i) => {
     if (seen.has(i.code)) return false;
@@ -41,7 +52,7 @@ export default function ValidationPanel({ issues, compact }: Props) {
     return (
       <div className="bg-white border border-brand-stroke rounded-card p-3 flex items-center gap-2 shadow-card">
         <span className="w-2 h-2 rounded-full bg-green-500" />
-        <span className="text-xs text-brand-muted">Your design looks great.</span>
+        <span className="text-xs text-brand-muted">{'\u2728'}</span>
       </div>
     );
   }
@@ -50,13 +61,15 @@ export default function ValidationPanel({ issues, compact }: Props) {
     <div className="space-y-2">
       {deduped.map((i, idx) => {
         const s = STYLES[i.level];
+        const key = MESSAGE_KEY_BY_CODE[i.code];
+        const text = key ? t(key) : i.message;
         return (
           <div
             key={idx}
             className={`rounded-xl px-3 py-2 text-xs flex gap-2 items-start border ${s.box}`}
           >
             <span className={`font-bold mt-0.5 ${s.icon}`}>{s.symbol}</span>
-            <span className="leading-snug">{i.message}</span>
+            <span className="leading-snug">{text}</span>
           </div>
         );
       })}

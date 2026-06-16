@@ -15,6 +15,7 @@ import {
 import type Konva from 'konva';
 import useImage from 'use-image';
 import type { PhoneModel } from '@/lib/phone-models';
+import { useLanguage } from './LanguageContext';
 import type { DesignObject, ImageObject, TextObject, StickerObject } from '@/lib/design-types';
 import type { ValidationIssue } from '@/lib/validation';
 import { findAsset } from '@/lib/assets-library';
@@ -233,6 +234,7 @@ export default function PhoneCanvas({
   onDuplicate,
   preview = false,
 }: Props) {
+  const { t } = useLanguage();
   const stageRef = useRef<Konva.Stage>(null);
   const transformerRef = useRef<Konva.Transformer>(null);
   const [showSafeArea, setShowSafeArea] = useState(true);
@@ -241,12 +243,28 @@ export default function PhoneCanvas({
   useEffect(() => {
     function recalc() {
       const padding = 32;
-      const availableW = Math.min(window.innerWidth - padding, 480);
-      // Preview mode has no tools drawer, so the case can use more vertical space.
-      const availableH = window.innerHeight - (preview ? 200 : 320);
+      const vw = window.innerWidth;
+      // Desktop (≥1024px) gets a noticeably larger canvas — the editor is the
+      // main work area, so we let it grow to ~720px wide and ~78vh tall.
+      // Mobile keeps the previous tighter cap.
+      const isDesktop = vw >= 1024;
+      const maxCanvasW = isDesktop ? 720 : 480;
+      const availableW = Math.min(vw - padding, maxCanvasW);
+
+      // Vertical room left after subtracting fixed chrome (header, steps,
+      // tools drawer on mobile, summary panel on desktop).
+      const vh = window.innerHeight;
+      const chrome = preview ? 180 : isDesktop ? 200 : 280;
+      const availableH = isDesktop
+        ? Math.min(vh - chrome, vh * 0.82)  // cap ~82vh on desktop
+        : vh - chrome;
+
       const fitW = availableW / model.canvas.width;
       const fitH = availableH / model.canvas.height;
-      setScale(Math.min(1, fitW, fitH));
+      // Allow scale > 1 on desktop so small mockups can grow to fill the
+      // available area — cap at 1.7× so they don't get pixelated.
+      const maxScale = isDesktop ? 1.7 : 1;
+      setScale(Math.min(maxScale, fitW, fitH));
     }
     recalc();
     window.addEventListener('resize', recalc);
@@ -272,7 +290,7 @@ export default function PhoneCanvas({
   }, [selectedId, objects]);
 
   return (
-    <div className="w-full">
+    <div className="w-full" dir="ltr">
       <div
         className="relative mx-auto rounded-card p-4 bg-brand-paper border border-brand-stroke shadow-card"
         style={{ width: model.canvas.width * scale + 32 }}
@@ -448,46 +466,10 @@ export default function PhoneCanvas({
               />
             )}
 
-            {/* Camera cutout — soft, friendly. Allows overlap; print mask handles it.
-                Shown in both edit and preview (it's a physical case feature). */}
-            <Rect
-              x={model.cameraCutout.x}
-              y={model.cameraCutout.y}
-              width={model.cameraCutout.width}
-              height={model.cameraCutout.height}
-              cornerRadius={model.cameraCutout.radius}
-              fill="rgba(255,255,255,0.5)"
-            />
-            <Rect
-              x={model.cameraCutout.x}
-              y={model.cameraCutout.y}
-              width={model.cameraCutout.width}
-              height={model.cameraCutout.height}
-              cornerRadius={model.cameraCutout.radius}
-              stroke="#0A0A0A"
-              strokeWidth={1.5}
-              dash={[8, 6]}
-              opacity={0.6}
-            />
-            {/* "Not printed" pill label — edit mode only */}
-            {!preview && (
-              <Label
-                x={model.cameraCutout.x + model.cameraCutout.width / 2 - 40}
-                y={model.cameraCutout.y + model.cameraCutout.height + 8}
-              >
-                <Tag fill="#690001" cornerRadius={10} />
-                <KonvaText
-                  text="Not printed"
-                  fontFamily="Poppins"
-                  fontSize={11}
-                  fontStyle="bold"
-                  fill="#FFFFFF"
-                  padding={6}
-                  width={80}
-                  align="center"
-                />
-              </Label>
-            )}
+            {/* Camera cutout — intentionally NOT drawn in the editor anymore.
+                The customer can design freely across the full case length;
+                the print export still masks the camera area, and a small
+                info line under the canvas explains it. */}
           </Layer>
         </Stage>
 
@@ -529,7 +511,7 @@ export default function PhoneCanvas({
           </label>
           <span className="hidden sm:inline text-brand-stroke">·</span>
           <span className="text-xs text-brand-muted text-center">
-            Camera area — not printed.
+            {t('cameraInfo')}
           </span>
         </div>
       )}

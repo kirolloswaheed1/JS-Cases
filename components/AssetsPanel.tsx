@@ -1,5 +1,8 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+import type { TranslationKey } from '@/lib/translations';
+
 import { useMemo, useState } from 'react';
 import { ASSET_CATEGORIES, type AssetItem } from '@/lib/assets-library';
 import type { StickerObject } from '@/lib/design-types';
@@ -11,6 +14,7 @@ interface Props {
 }
 
 export default function AssetsPanel({ onAddSticker, selected }: Props) {
+  const { t } = useLanguage();
   const [activeCategory, setActiveCategory] = useState(ASSET_CATEGORIES[0].id);
   const [query, setQuery] = useState('');
 
@@ -36,7 +40,7 @@ export default function AssetsPanel({ onAddSticker, selected }: Props) {
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search stickers…"
+          placeholder={t('stickersSearchPlaceholder')}
           className="w-full border border-brand-stroke rounded-pill pl-9 pr-3 py-2 text-sm focus:outline-none focus:border-brand-primary"
         />
         <svg
@@ -66,7 +70,7 @@ export default function AssetsPanel({ onAddSticker, selected }: Props) {
                   : 'bg-brand-paper text-brand-ink hover:bg-brand-primary-soft border border-brand-stroke'
               }`}
             >
-              {c.name}
+              {c.id === 'men' ? t('stickersMen') : c.id === 'women' ? t('stickersWomen') : c.name}
             </button>
           ))}
         </div>
@@ -92,7 +96,7 @@ export default function AssetsPanel({ onAddSticker, selected }: Props) {
         ))}
         {visible.length === 0 && (
           <p className="col-span-3 text-center text-xs text-brand-muted py-6">
-            No stickers match that search.
+            {t('stickersEmpty')}
           </p>
         )}
       </div>

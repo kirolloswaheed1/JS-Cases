@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 import type { DesignObject } from '@/lib/design-types';
 
 interface Props {
@@ -32,11 +34,7 @@ const ICONS = {
   ),
 };
 
-function label(obj: DesignObject): string {
-  if (obj.type === 'text') return obj.text.slice(0, 24) || 'Text';
-  if (obj.type === 'sticker') return obj.name || 'Sticker';
-  return obj.name || 'Image';
-}
+
 
 export default function LayersPanel({
   objects,
@@ -46,19 +44,20 @@ export default function LayersPanel({
   onDelete,
   onReorder,
 }: Props) {
+  const { t } = useLanguage();
   // Show top-most layers first (last in array = drawn last = on top).
   const ordered = [...objects].reverse();
 
   return (
     <div className="bg-white border border-brand-stroke rounded-card p-4 space-y-2 shadow-card">
       <div className="flex items-center justify-between mb-1">
-        <h3 className="font-bold text-sm">Layers</h3>
-        <span className="text-xs text-brand-muted">{objects.length} item{objects.length === 1 ? '' : 's'}</span>
+        <h3 className="font-bold text-sm">{t('layersTitle')}</h3>
+        <span className="text-xs text-brand-muted">{objects.length} {t('layersCount')}</span>
       </div>
 
       {ordered.length === 0 ? (
         <p className="text-xs text-brand-muted text-center py-6">
-          Add an image, text, or sticker to start designing.
+          {t('layersEmpty')}
         </p>
       ) : (
         <ul className="space-y-1.5 max-h-64 overflow-y-auto scrollbar-thin -mx-1 px-1">
@@ -85,7 +84,11 @@ export default function LayersPanel({
                   >
                     {ICONS[obj.type]}
                   </span>
-                  <span className="truncate font-medium">{label(obj)}</span>
+                  <span className="truncate font-medium">{
+                    obj.type === 'text'    ? ((obj.text && obj.text.slice(0, 24)) || t('layerText')) :
+                    obj.type === 'sticker' ? (obj.name || t('layerSticker')) :
+                    (obj.name || t('layerImage'))
+                  }</span>
                 </button>
 
                 {/* Reorder up / down */}
@@ -149,7 +152,7 @@ export default function LayersPanel({
       )}
 
       <p className="text-xs text-brand-muted pt-2 border-t border-brand-stroke">
-        Top of the list = on top of the design.
+        {t('layersHint')}
       </p>
     </div>
   );

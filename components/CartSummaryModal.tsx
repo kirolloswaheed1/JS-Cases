@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 interface SummaryRow {
   label: string;
   value: string;
@@ -27,6 +29,7 @@ export default function CartSummaryModal({
   onConfirm,
   onCancel,
 }: Props) {
+  const { t } = useLanguage();
   if (!open) return null;
   return (
     <div
@@ -45,10 +48,10 @@ export default function CartSummaryModal({
             id="summary-title"
             className="font-extrabold text-lg text-brand-ink"
           >
-            Review your case
+            {t('summaryTitle')}
           </h2>
           <p className="text-xs text-brand-muted mt-1">
-            Check the details below before we send you to checkout.
+            {t('summarySubtitle')}
           </p>
         </div>
 
@@ -78,14 +81,14 @@ export default function CartSummaryModal({
             disabled={busy}
             className="w-full font-bold py-3 rounded-pill bg-brand-primary text-brand-primary-label shadow-pop hover:bg-brand-primary-hover transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
           >
-            {busy ? 'Working…' : 'Confirm & checkout'}
+            {busy ? t('summaryWorking') : t('summaryConfirm')}
           </button>
           <button
             onClick={onCancel}
             disabled={busy}
             className="w-full text-sm font-semibold py-2 text-brand-ink/70 hover:text-brand-primary transition disabled:opacity-50"
           >
-            Back to editing
+            {t('backToEditing')}
           </button>
         </div>
       </div>

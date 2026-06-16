@@ -14,6 +14,7 @@ import { generateDesignId } from '@/lib/design-id';
 import { validateDesign, hasBlockingErrors, type ValidationIssue } from '@/lib/validation';
 import { exportDesign } from '@/lib/export-design';
 import { buildShopifyCartUrl, resolveCartVariantId } from '@/lib/shopify';
+import { LanguageProvider, useLanguage } from './LanguageContext';
 import type { AssetItem } from '@/lib/assets-library';
 import PhoneCanvas from './PhoneCanvas';
 import Toolbar from './Toolbar';
@@ -30,6 +31,18 @@ import CartSummaryModal from './CartSummaryModal';
 type Tab = 'product' | 'upload' | 'text' | 'stickers' | 'colors' | 'layers';
 
 export default function CustomizerApp() {
+  // Wrap the actual customizer in the LanguageProvider so every nested
+  // component can call useLanguage(). Keeping the wrapper tiny and the
+  // existing logic intact as CustomizerAppInner below.
+  return (
+    <LanguageProvider>
+      <CustomizerAppInner />
+    </LanguageProvider>
+  );
+}
+
+function CustomizerAppInner() {
+  const { t, lang, setLang } = useLanguage();
   const [modelId, setModelId] = useState<string>(DEFAULT_MODEL_ID);
   const [customPhoneModel, setCustomPhoneModel] = useState<string>('');
   const [caseType, setCaseType] = useState<'solid' | 'transparent'>('solid');
@@ -314,21 +327,19 @@ export default function CustomizerApp() {
    */
   const openSummary = useCallback(() => {
     if (objects.length === 0) {
-      alert('Add at least one element to your design first.');
+      alert(t('errorAddElementsFirst'));
       return;
     }
     if (blocking) {
-      alert('Please resolve the errors before adding to cart.');
+      alert(t('errorResolveErrors'));
       return;
     }
     if (model.isOther && customPhoneModel.trim().length === 0) {
-      alert('Please type your phone model before adding to cart.');
+      alert(t('errorTypePhoneModel'));
       return;
     }
     if (!resolveCartVariantId(caseType)) {
-      alert(
-        'The custom case Shopify variant ID is not configured yet. The store owner needs to set NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID in the deployment environment.'
-      );
+      alert(t('errorVariantNotConfigured'));
       return;
     }
     // Reset any stale status, deselect for a clean preview, open modal.
@@ -347,46 +358,44 @@ export default function CustomizerApp() {
     const caseColorName =
       CASE_COLORS.find((c) => c.hex === caseColor)?.name ?? caseColor;
     const rows: { label: string; value: string }[] = [
-      { label: 'Phone Model', value: model.isOther ? 'Other' : model.name },
+      { label: t('rowPhoneModel'), value: model.isOther ? t('other') : model.name },
     ];
     if (model.isOther && trimmedCustomModel) {
-      rows.push({ label: 'Custom Phone Model', value: trimmedCustomModel });
+      rows.push({ label: t('rowCustomPhoneModel'), value: trimmedCustomModel });
     }
     rows.push({
-      label: 'Phone Color',
+      label: t('rowPhoneColor'),
       value:
         phoneColorId === CUSTOM_PHONE_COLOR_ID
-          ? `Custom (${resolvedPhoneColor.hex.toUpperCase()})`
+          ? `${t('custom')} (${resolvedPhoneColor.hex.toUpperCase()})`
           : resolvedPhoneColor.name,
     });
     rows.push({
-      label: 'Case Type',
-      value: caseType === 'transparent' ? 'Transparent' : 'Solid Color',
+      label: t('rowCaseType'),
+      value: caseType === 'transparent' ? t('transparent') : t('solidColor'),
     });
     if (caseType === 'solid') {
-      rows.push({ label: 'Case Color', value: caseColorName });
+      rows.push({ label: t('rowCaseColor'), value: caseColorName });
     }
-    rows.push({ label: 'Customized Case', value: 'Yes' });
+    rows.push({ label: t('rowCustomizedCase'), value: t('yes') });
     return rows;
-  }, [model, caseType, caseColor, customPhoneModel, phoneColorId, resolvedPhoneColor]);
+  }, [model, caseType, caseColor, customPhoneModel, phoneColorId, resolvedPhoneColor, t]);
 
   const handleAddToCart = useCallback(async () => {
     if (objects.length === 0) {
-      alert('Add at least one element to your design first.');
+      alert(t('errorAddElementsFirst'));
       return;
     }
     if (blocking) {
-      alert('Please resolve the errors before adding to cart.');
+      alert(t('errorResolveErrors'));
       return;
     }
     if (model.isOther && customPhoneModel.trim().length === 0) {
-      alert('Please type your phone model before adding to cart.');
+      alert(t('errorTypePhoneModel'));
       return;
     }
     if (!resolveCartVariantId(caseType)) {
-      alert(
-        'The custom case Shopify variant ID is not configured yet. The store owner needs to set NEXT_PUBLIC_DEFAULT_CUSTOM_CASE_VARIANT_ID in the deployment environment.'
-      );
+      alert(t('errorVariantNotConfigured'));
       return;
     }
 
@@ -415,7 +424,7 @@ export default function CustomizerApp() {
         }
       );
 
-      setStatus({ state: 'uploading', message: 'Uploading design…' });
+      setStatus({ state: 'uploading', message: t('uploadingDesign') });
       const uploadRes = await fetch('/api/upload-design', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -434,7 +443,7 @@ export default function CustomizerApp() {
 
       setStatus({
         state: 'redirecting',
-        message: 'Your custom case is ready. Redirecting you to checkout…',
+        message: `${t('yourDesignReady')} ${t('redirectingToCheckout')}`,
       });
 
       const shopDomain = process.env.NEXT_PUBLIC_SHOPIFY_DOMAIN || 'jscases.co';
@@ -483,7 +492,7 @@ export default function CustomizerApp() {
       console.error(err);
       setStatus({
         state: 'error',
-        message: "We couldn't prepare your design. Please try again.",
+        message: t('errorPreparingDesign'),
       });
     }
   }, [objects, blocking, model, caseType, caseColor, backgroundColor, customPhoneModel, phoneColorId, resolvedPhoneColor]);
@@ -499,12 +508,12 @@ export default function CustomizerApp() {
           <div className="flex items-center justify-between px-4 py-3 border-b border-brand-stroke">
             <img src="/js-cases-logo-transparent.png" alt="JS Cases" className="h-10 w-auto" />
             <span className="text-xs font-bold text-brand-primary uppercase tracking-wide">
-              Preview
+              {t('preview')}
             </span>
           </div>
           <div className="flex-1 flex flex-col items-center justify-center px-4 overflow-auto">
             <p className="text-sm text-brand-ink/70 mb-4 text-center max-w-sm">
-              This is how your case will look. The camera area stays open and won't be printed.
+              {t('cameraInfo')}
             </p>
             <PhoneCanvas
               model={model}
@@ -547,6 +556,15 @@ export default function CustomizerApp() {
             />
           </a>
           <div className="flex items-center gap-2">
+            {/* Language toggle — minimal, brand-tinted. Persists in localStorage. */}
+            <button
+              onClick={() => setLang(lang === 'en' ? 'ar' : 'en')}
+              className="text-sm font-bold text-brand-primary hover:bg-brand-primary hover:text-brand-primary-label transition px-3 py-1.5 rounded-pill border border-brand-primary/40"
+              aria-label={lang === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+              title={lang === 'en' ? 'Switch to Arabic' : 'Switch to English'}
+            >
+              {lang === 'en' ? 'العربية' : 'English'}
+            </button>
             <button
               onClick={() => setPreviewMode(true)}
               className="inline-flex items-center gap-1.5 text-sm font-semibold text-brand-primary hover:bg-brand-primary hover:text-brand-primary-label transition px-3 py-1.5 rounded-pill border border-brand-primary/40"
@@ -555,13 +573,13 @@ export default function CustomizerApp() {
                 <path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7Z" />
                 <circle cx="12" cy="12" r="3" />
               </svg>
-              Preview
+              {t('preview')}
             </button>
             <button
               onClick={resetDesign}
               className="text-sm font-semibold text-brand-ink/70 hover:text-brand-primary transition px-3 py-1.5 rounded-pill border border-transparent hover:border-brand-primary/30"
             >
-              Reset
+              {t('reset')}
             </button>
           </div>
         </div>
@@ -570,14 +588,13 @@ export default function CustomizerApp() {
       {/* Hero title */}
       <div className="max-w-7xl mx-auto px-4 pt-6 pb-3 md:pt-10 md:pb-4 text-center">
         <div className="inline-flex items-center gap-1.5 bg-brand-primary text-brand-primary-label text-xs font-bold px-3 py-1 rounded-pill mb-3">
-          <span>✨</span> Design your own
+          <span>✨</span> {t('designYourOwn')}
         </div>
         <h2 className="font-extrabold text-3xl md:text-5xl tracking-tight text-brand-ink">
-          Create Your Own Case
+          {t('createYourOwnCase')}
         </h2>
         <p className="text-brand-ink/70 text-sm md:text-base mt-3 max-w-xl mx-auto">
-          Upload your photos, add text, add stickers, and design a case that feels
-          completely yours.
+          {t('heroSubtitle')}
         </p>
       </div>
 
@@ -604,8 +621,8 @@ export default function CustomizerApp() {
       </div>
 
       {/* Main grid */}
-      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-20 md:pb-12">
-        <div className="grid grid-cols-1 lg:grid-cols-[260px_1fr_320px] gap-4 lg:gap-6">
+      <div className="max-w-7xl mx-auto px-3 md:px-6 pb-32 md:pb-12">
+        <div className="grid grid-cols-1 lg:grid-cols-[240px_1fr_300px] gap-4 lg:gap-5">
           {/* Left column — tools (desktop only) */}
           <aside className="hidden lg:block">
             <Toolbar activeTab={activeTab} onChange={setActiveTab} />
@@ -727,8 +744,11 @@ export default function CustomizerApp() {
         />
 
         <div
-          className="fixed bottom-0 left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-pop z-30 rounded-t-card flex flex-col"
+          className="fixed left-0 right-0 bg-brand-paper border-t border-brand-stroke shadow-pop z-30 rounded-t-card flex flex-col"
           style={{
+            // Sit above the sticky Add to Cart bar (~64px + iOS safe-area)
+            // so the drawer handle and the CTA never collide.
+            bottom: 'calc(64px + env(safe-area-inset-bottom))',
             // Cap total drawer height so the phone preview stays the focus.
             // Lower than the previous 78vh — most of the viewport now goes to
             // the design canvas; tool content scrolls internally if needed.
@@ -772,12 +792,12 @@ export default function CustomizerApp() {
             style={{ touchAction: 'none' }}
             aria-expanded={drawerOpen}
             aria-controls="tools-drawer-content"
-            aria-label={drawerOpen ? 'Hide tools' : 'Show tools'}
+            aria-label={drawerOpen ? t('hideTools') : t('tools')}
           >
             {/* Drag bar — slightly chunkier and brand-tinted to invite the gesture */}
             <span className="w-12 h-1.5 rounded-pill bg-brand-primary/40 mb-1.5" />
             <span className="inline-flex items-center gap-1.5 text-xs font-bold text-brand-primary">
-              {drawerOpen ? 'Hide tools' : 'Tools'}
+              {drawerOpen ? t('hideTools') : t('tools')}
               <svg
                 width="14"
                 height="14"
@@ -872,23 +892,35 @@ export default function CustomizerApp() {
               )}
             </div>
 
-            {/* Bottom bar: validation + Add to Cart, inside the drawer body
-                so the whole shutter slides together. When the drawer is
-                collapsed these are off-screen along with everything else. */}
+            {/* Validation messages stay inside the drawer (only visible
+                when expanded). The Add to Cart CTA lives OUTSIDE the
+                drawer as a sticky bottom bar (rendered below) so it's
+                always within thumb's reach. */}
             <div className="border-t border-brand-stroke px-3 py-3 bg-brand-paper">
               <ValidationPanel issues={issues} compact />
-              <div className="mt-2">
-                <AddToCartPanel
-                  model={model}
-                  caseColor={caseColor}
-                  objectCount={objects.length}
-                  status={status}
-                  disabled={blocking}
-                  onAdd={openSummary}
-                  compact
-                />
-              </div>
             </div>
+          </div>
+        </div>
+
+        {/* Sticky Add to Cart bar — mobile only, always visible above the
+            drawer handle. iOS safe-area inset keeps it clear of the home
+            indicator. Tap-target stays large. */}
+        <div
+          className="fixed left-0 right-0 z-40 bg-brand-paper border-t border-brand-stroke shadow-pop"
+          style={{
+            bottom: 0,
+            paddingBottom: 'env(safe-area-inset-bottom)',
+          }}
+        >
+          <div className="px-3 py-2.5">
+            <button
+              type="button"
+              onClick={openSummary}
+              disabled={blocking || objects.length === 0}
+              className="w-full font-bold py-3 rounded-pill text-base bg-brand-primary text-brand-primary-label shadow-pop hover:bg-brand-primary-hover transition active:scale-[0.98] disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {t('addToCart')}
+            </button>
           </div>
         </div>
       </div>

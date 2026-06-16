@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 export type Step = 'phone' | 'design' | 'preview' | 'cart';
 
 interface Props {
@@ -7,12 +9,6 @@ interface Props {
   onStepClick?: (step: Step) => void;
 }
 
-const STEPS: { id: Step; label: string; shortLabel: string }[] = [
-  { id: 'phone',   label: 'Choose Phone', shortLabel: 'Phone' },
-  { id: 'design',  label: 'Design',       shortLabel: 'Design' },
-  { id: 'preview', label: 'Preview',      shortLabel: 'Preview' },
-  { id: 'cart',    label: 'Add to Cart',  shortLabel: 'Cart' },
-];
 
 /**
  * Horizontal step indicator. The `current` step reflects where the customer
@@ -20,6 +16,13 @@ const STEPS: { id: Step; label: string; shortLabel: string }[] = [
  * Clicking a step is optional — wire `onStepClick` to let the user jump.
  */
 export default function StepIndicator({ current, onStepClick }: Props) {
+  const { t } = useLanguage();
+  const STEPS: { id: Step; label: string; shortLabel: string }[] = [
+    { id: 'phone',   label: t('stepPhone'),   shortLabel: t('stepPhoneShort') },
+    { id: 'design',  label: t('stepDesign'),  shortLabel: t('stepDesignShort') },
+    { id: 'preview', label: t('stepPreview'), shortLabel: t('stepPreviewShort') },
+    { id: 'cart',    label: t('stepCart'),    shortLabel: t('stepCartShort') },
+  ];
   const currentIndex = STEPS.findIndex((s) => s.id === current);
 
   return (

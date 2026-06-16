@@ -7,14 +7,43 @@ import { useEffect, useState } from 'react';
  * bundle dynamic-imported by app/page.tsx). After 8 seconds of waiting it
  * surfaces a Reload button — useful on flaky mobile networks where a chunk
  * fetch can stall.
+ *
+ * Translations are inlined here so the loader doesn't import anything from
+ * the (large) i18n module — the loader needs to render fast on the very
+ * first paint of the page, before the main bundle resolves.
  */
+const LOADER_COPY = {
+  en: {
+    body: 'Preparing your custom case designer…',
+    slow: 'Taking longer than usual.',
+    reload: 'Reload designer',
+  },
+  ar: {
+    body: 'جاري تجهيز محرّر الجراب المخصص…',
+    slow: 'يستغرق وقتاً أطول من المعتاد.',
+    reload: 'إعادة تحميل المحرّر',
+  },
+} as const;
+
 export default function CustomizerLoader() {
   const [showReload, setShowReload] = useState(false);
+  const [lang, setLang] = useState<'en' | 'ar'>('en');
 
   useEffect(() => {
-    const t = setTimeout(() => setShowReload(true), 8000);
-    return () => clearTimeout(t);
+    try {
+      const stored = window.localStorage.getItem('jscases:lang');
+      if (stored === 'ar' || stored === 'en') setLang(stored);
+    } catch {
+      /* ignore */
+    }
   }, []);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setShowReload(true), 8000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const copy = LOADER_COPY[lang];
 
   return (
     <div
@@ -41,20 +70,20 @@ export default function CustomizerLoader() {
       />
 
       <p className="text-sm md:text-base font-medium" style={{ color: '#000000' }}>
-        Preparing your custom case designer…
+        {copy.body}
       </p>
 
       {showReload && (
         <div className="mt-6 flex flex-col items-center gap-2">
           <p className="text-xs text-black/60 text-center max-w-xs">
-            Taking longer than usual.
+            {copy.slow}
           </p>
           <button
             onClick={() => window.location.reload()}
             className="px-5 py-2 rounded-pill text-sm font-bold transition active:scale-95"
             style={{ backgroundColor: '#690001', color: '#FFFFFF' }}
           >
-            Reload designer
+            {copy.reload}
           </button>
         </div>
       )}

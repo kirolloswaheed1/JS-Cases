@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 import { PHONE_MODELS } from '@/lib/phone-models';
 import { CASE_COLORS } from '@/lib/case-colors';
 import { PHONE_COLORS, CUSTOM_PHONE_COLOR_ID } from '@/lib/phone-colors';
@@ -39,6 +41,7 @@ export default function ProductOptions({
   onBackgroundChange,
   showOnlyColors,
 }: Props) {
+  const { t } = useLanguage();
   const selectedModel = PHONE_MODELS.find((m) => m.id === modelId);
   const isOther = selectedModel?.isOther ?? false;
   const isCustomPhoneColor = phoneColorId === CUSTOM_PHONE_COLOR_ID;
@@ -47,7 +50,7 @@ export default function ProductOptions({
     <div className="bg-white border border-brand-stroke rounded-card p-4 space-y-5 shadow-card">
       {!showOnlyColors && (
         <div>
-          <h3 className="font-bold text-sm mb-2">Phone model</h3>
+          <h3 className="font-bold text-sm mb-2">{t('phoneModel')}</h3>
           <select
             value={modelId}
             onChange={(e) => onModelChange(e.target.value)}
@@ -93,9 +96,9 @@ export default function ProductOptions({
           especially helpful when the case is Transparent. */}
       {!showOnlyColors && (
         <div>
-          <h3 className="font-bold text-sm mb-1">Phone color</h3>
+          <h3 className="font-bold text-sm mb-1">{t('phoneColor')}</h3>
           <p className="text-xs text-brand-muted mb-2">
-            Choose your phone color to preview how the case will look.
+            {t('phoneColorHelper')}
           </p>
           <div className="grid grid-cols-5 gap-2">
             {PHONE_COLORS.map((c) => {
@@ -160,7 +163,7 @@ export default function ProductOptions({
 
       {/* Case type — Solid Color vs Transparent */}
       <div>
-        <h3 className="font-bold text-sm mb-2">Case type</h3>
+        <h3 className="font-bold text-sm mb-2">{t('caseType')}</h3>
         <div className="grid grid-cols-2 gap-2">
           <button
             onClick={() => onCaseTypeChange('solid')}
@@ -186,7 +189,7 @@ export default function ProductOptions({
                   : 'repeating-conic-gradient(#EFEAE2 0% 25%, #FFFFFF 0% 50%) 50% / 10px 10px',
             }}
           >
-            Transparent
+            {t('transparent')}
           </button>
         </div>
         <p className="text-xs text-brand-muted mt-2">
@@ -199,7 +202,7 @@ export default function ProductOptions({
       {/* Case color — only relevant when solid */}
       {caseType === 'solid' && (
         <div>
-          <h3 className="font-bold text-sm mb-2">Case color</h3>
+          <h3 className="font-bold text-sm mb-2">{t('caseColor')}</h3>
           <div className="grid grid-cols-5 gap-2">
             {CASE_COLORS.map((c) => (
               <button

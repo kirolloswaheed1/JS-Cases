@@ -1,5 +1,7 @@
 'use client';
 
+import { useLanguage } from './LanguageContext';
+
 import type { TextObject } from '@/lib/design-types';
 
 interface Props {
@@ -32,20 +34,21 @@ const PRESET_COLORS = [
 ];
 
 export default function TextTools({ onAddText, selected, onUpdate }: Props) {
+  const { t } = useLanguage();
   return (
     <div className="bg-white border border-brand-stroke rounded-card p-4 space-y-4 shadow-card">
       <button
-        onClick={() => onAddText('Your text')}
+        onClick={() => onAddText(t('textPlaceholder'))}
         className="w-full bg-brand-ink text-white font-bold py-2.5 rounded-pill hover:bg-black transition"
       >
-        + Add Text
+        + {t('addText')}
       </button>
 
       {selected ? (
         <div className="space-y-3 pt-1">
           <div>
             <label className="block text-xs font-medium text-brand-muted mb-1">
-              Text
+              {t('addText')}
             </label>
             {selected.textLayout === 'multiline' ? (
               <textarea
@@ -69,7 +72,7 @@ export default function TextTools({ onAddText, selected, onUpdate }: Props) {
           {/* Text layout — horizontal / multiline / stacked */}
           <div>
             <label className="block text-xs font-medium text-brand-muted mb-1">
-              Layout
+              {t('textLayout')}
             </label>
             <div className="grid grid-cols-3 gap-1">
               {(
@@ -102,7 +105,7 @@ export default function TextTools({ onAddText, selected, onUpdate }: Props) {
 
           <div>
             <label className="block text-xs font-medium text-brand-muted mb-1">
-              Font
+              {t('textFont')}
             </label>
             <select
               value={selected.fontFamily}
@@ -163,7 +166,7 @@ export default function TextTools({ onAddText, selected, onUpdate }: Props) {
 
           <div>
             <label className="block text-xs font-medium text-brand-muted mb-1">
-              Style
+              {t('textStyle')}
             </label>
             <div className="flex gap-1">
               {(['normal', 'bold', 'italic', 'bold italic'] as const).map((s) => (
