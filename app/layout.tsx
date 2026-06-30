@@ -1,6 +1,6 @@
 import type { Metadata } from 'next';
 import '../styles/globals.css';
-import { SpeedInsights } from "@vercel/speed-insights/next"
+import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export const metadata: Metadata = {
   metadataBase: new URL(
@@ -17,8 +17,6 @@ export const metadata: Metadata = {
     type: 'website',
   },
 };
-
-import { SpeedInsights } from '@vercel/speed-insights/next';
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
