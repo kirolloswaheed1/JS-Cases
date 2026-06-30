@@ -1,3 +1,5 @@
+import { put } from '@vercel/blob';
+
 /**
  * Storage adapter.
  *
@@ -12,6 +14,7 @@
  *                                    Use this in local dev when you don't have credentials.
  *   STORAGE_PROVIDER=supabase      → uploads to Supabase Storage (bucket: SUPABASE_BUCKET).
  *   STORAGE_PROVIDER=cloudinary    → uploads to Cloudinary (folder: CLOUDINARY_FOLDER).
+ *   STORAGE_PROVIDER=vercel-blob   → uploads to Vercel Blob.
  *
  * To change provider: set STORAGE_PROVIDER + the corresponding credentials. No code changes.
  */
@@ -90,6 +93,38 @@ function makeSupabaseAdapter(): StorageAdapter {
   };
 }
 
+/* ---------------------------- Vercel Blob ------------------------------ */
+/* Requires: BLOB_STORE_ID + VERCEL_OIDC_TOKEN on Vercel/OIDC
+   Or BLOB_READ_WRITE_TOKEN if you later choose token auth. */
+
+function makeVercelBlobAdapter(): StorageAdapter {
+  async function upload(path: string, body: Buffer, contentType: string): Promise<StoredFile> {
+    const blob = await put(path, body, {
+      access: 'public',
+      contentType,
+      allowOverwrite: true,
+      addRandomSuffix: false,
+    });
+
+    return {
+      url: blob.url,
+      key: blob.pathname,
+    };
+  }
+
+  return {
+    async uploadPng(keyName, base64DataUrl) {
+      const { buffer, mime } = base64DataUrlToBuffer(base64DataUrl);
+      return upload(keyName, buffer, mime);
+    },
+
+    async uploadJson(keyName, json) {
+      const buf = Buffer.from(JSON.stringify(json));
+      return upload(keyName, buf, 'application/json');
+    },
+  };
+}
+
 /* ----------------------------- Cloudinary ------------------------------ */
 /* Requires: CLOUDINARY_CLOUD_NAME, CLOUDINARY_API_KEY, CLOUDINARY_API_SECRET */
 
@@ -144,11 +179,17 @@ function makeCloudinaryAdapter(): StorageAdapter {
 
 export function getStorage(): StorageAdapter {
   const provider = process.env.STORAGE_PROVIDER || 'placeholder';
+
   switch (provider) {
     case 'supabase':
       return makeSupabaseAdapter();
+
     case 'cloudinary':
       return makeCloudinaryAdapter();
+
+    case 'vercel-blob':
+      return makeVercelBlobAdapter();
+
     case 'placeholder':
     default:
       return placeholderAdapter;
